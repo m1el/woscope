@@ -1,5 +1,5 @@
+'use strict';
 var CreateShader = function(gl, vsSource, fsSource) {
-    'use strict';
     if (typeof WebGLRenderingContext !== 'function' ||
             !(gl instanceof WebGLRenderingContext)) {
         throw new Error('CreateShader: no WebGL context');

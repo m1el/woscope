@@ -3,12 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <title>woscilloscope</title>
-    <script src="base64.js"></script>
-    <script src="algebra.js"></script>
     <script src="gl.js"></script>
     <script>
+'use strict';
 window.onload = function() {
-    'use strict';
     let canvas = $('c'),
         gl = initGl(canvas),
         shader = CreateShader(gl, getText('vshader'), getText('fshader'));
@@ -23,11 +21,10 @@ window.onload = function() {
     loop();
 };
 
-var points = null;
-var ilaced = null;
+let points = null;
+let ilaced = null;
 
 function initGl(canvas) {
-    'use strict';
     let gl = canvas.getContext('webgl');
     gl.clearColor( 0.0, 0.0, 0.0, 1.0 );
     gl.viewport(0, 0, canvas.width, canvas.height);
@@ -35,7 +32,6 @@ function initGl(canvas) {
 }
 
 function makeInterlaced(gl) {
-    'use strict';
     let interlaced = new Int32Array(4096/4);
     for (let i = interlaced.length; i--; ) {
         interlaced[i] = 0xFF01FF01;
@@ -49,7 +45,6 @@ function makeInterlaced(gl) {
 }
 
 function makePoints(gl) {
-    'use strict';
     let vertices = [],
         TAU = Math.PI*2;
     for (let i = 0; i < 100; i++) {
@@ -82,7 +77,6 @@ function $(id) { return document.getElementById(id); }
 function getText(id) { return $(id).innerText; }
 
 function draw(gl, shader) {
-    'use strict';
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
 
     gl.useProgram(shader);
