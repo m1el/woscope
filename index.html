@@ -15,6 +15,10 @@ let audioCtx = new AudioContext();
 let search = location.search.substr(1).split('&');
 let audioUrl = search[0] ? './' + search[0] : './khrang.m4a';
 let flags = +search[1];
+let audioData = null;
+let quadIndex = null;
+let vertexIndex = null;
+const nSamples = 2048;
 
 function axhr(url, callback, progress) {
     let request = new XMLHttpRequest();
@@ -42,17 +46,15 @@ window.onload = function() {
     axhr(audioUrl, function(buffer) {
         $('htmlAudio').volume = 0.5;
         $('htmlAudio').src = audioUrl;
-        $('htmlAudio').play();
-        ilaced = makeInterlaced(gl);
+        //$('htmlAudio').play();
+        quadIndex = makeQuadIndex(gl);
+        vertexIndex = makeVertexIndex(gl);
         audioData = prepareAudioData(gl, buffer);
         loop();
     }, function(e) {
         console.log('progress: ' + e.loaded + ' / ' + e.total);
     });
 };
-
-let audioData = null;
-let ilaced = null;
 
 function initGl(canvas) {
     let gl = canvas.getContext('webgl');
@@ -61,48 +63,71 @@ function initGl(canvas) {
     return gl;
 }
 
-function makeInterlaced(gl) {
-    let interlaced = new Int32Array(4096/4);
-    for (let i = interlaced.length; i--; ) {
-        interlaced[i] = 0xFF01FF01;
+function makeQuadIndex(gl) {
+    let index = new Int32Array(nSamples/2);
+    for (let i = index.length; i--; ) {
+        index[i] = 0x03020100;
     }
     let vbo = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-    gl.bufferData(gl.ARRAY_BUFFER, interlaced, gl.STATIC_DRAW);
+    gl.bufferData(gl.ARRAY_BUFFER, index, gl.STATIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER, null);
+
+    return vbo;
+}
+function makeVertexIndex(gl) {
+    let len = (nSamples-1)*2*3,
+        index = new Uint16Array(len);
+    for (let i = 0, pos = 0; i < len; ) {
+        index[i++] = pos;
+        index[i++] = pos+2;
+        index[i++] = pos+1;
+        index[i++] = pos+1;
+        index[i++] = pos+2;
+        index[i++] = pos+3;
+        pos += 4;
+    }
+    let vbo = gl.createBuffer();
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, vbo);
+    gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, index, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
 
     return vbo;
 }
 
 function prepareAudioData(gl, buffer) {
     let left = buffer.getChannelData(0),
-        right = buffer.getChannelData(1),
-        out = new Float32Array(buffer.length * 4);
+        right = buffer.getChannelData(1);
+
     if (flags&1) {
         let tmp = left;
         left = right;
         right = tmp;
     }
 
-    for (let i = buffer.length; i--;) {
-        out[i*4]   = out[i*4+2] = left[i];
-        out[i*4+1] = out[i*4+3] = right[i];
-    }
-
     let vbo = gl.createBuffer();
-    vbo.itemCount = 2048*4;
     return {
         vbo: vbo,
-        audioBuffer: buffer,
-        prepared: out,
+        left: left,
+        right: right,
     };
 }
 
 function loadWaveAtPosition(gl, position) {
-    gl.bindBuffer(gl.ARRAY_BUFFER, audioData.vbo);
     position = Math.floor(position*44100);
-    let subarr = audioData.prepared.subarray(position*4, position*4+audioData.vbo.itemCount);
-    gl.bufferData(gl.ARRAY_BUFFER, subarr, gl.STATIC_DRAW);
+    let end = Math.min(audioData.left.length, position+nSamples) - 1,
+        len = end - position;
+    let subArr = new Float32Array(nSamples*4),
+        left = audioData.left,
+        right = audioData.right;
+    for (let i = 0; i < len; i++) {
+        let t = i*8,
+            p = i+position;
+        subArr[t]   = subArr[t+2] = subArr[t+4] = subArr[t+6] = left[p];
+        subArr[t+1] = subArr[t+3] = subArr[t+5] = subArr[t+7] = right[p];
+    }
+    gl.bindBuffer(gl.ARRAY_BUFFER, audioData.vbo);
+    gl.bufferData(gl.ARRAY_BUFFER, subArr, gl.STATIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER, null);
 }
 
@@ -125,87 +150,94 @@ function draw(gl, shader) {
     let attribs = [];
 
     {
-        gl.bindBuffer(gl.ARRAY_BUFFER, ilaced);
-        let dirAttr = gl.getAttribLocation(shader, 'aDir');
-        if (dirAttr > -1) {
-            gl.enableVertexAttribArray(dirAttr);
-            gl.vertexAttribPointer(dirAttr, 1, gl.BYTE, false, 1, 0);
-            attribs.push(dirAttr);
+        gl.bindBuffer(gl.ARRAY_BUFFER, quadIndex);
+        let idxAttr = gl.getAttribLocation(shader, 'aIdx');
+        if (idxAttr > -1) {
+            gl.enableVertexAttribArray(idxAttr);
+            gl.vertexAttribPointer(idxAttr, 1, gl.BYTE, false, 1, 0);
+            attribs.push(idxAttr);
         }
     }
 
     {
         gl.bindBuffer(gl.ARRAY_BUFFER, audioData.vbo);
-        let tmpPos = gl.getAttribLocation(shader, 'aPrev');
+        let tmpPos = gl.getAttribLocation(shader, 'aStart');
         if (tmpPos > -1) {
             gl.enableVertexAttribArray(tmpPos);
-            gl.vertexAttribPointer(tmpPos, 2, gl.FLOAT, false, 0, 0);
+            gl.vertexAttribPointer(tmpPos, 2, gl.FLOAT, false, 8, 0);
             attribs.push(tmpPos);
         }
 
-        tmpPos = gl.getAttribLocation(shader, 'aCurr');
+        tmpPos = gl.getAttribLocation(shader, 'aEnd');
         if (tmpPos > -1) {
             gl.enableVertexAttribArray(tmpPos);
-            gl.vertexAttribPointer(tmpPos, 2, gl.FLOAT, false, 0, 16);
-            attribs.push(tmpPos);
-        }
-
-        tmpPos = gl.getAttribLocation(shader, 'aNext');
-        if (tmpPos > -1) {
-            gl.enableVertexAttribArray(tmpPos);
-            gl.vertexAttribPointer(tmpPos, 2, gl.FLOAT, false, 0, 32);
+            gl.vertexAttribPointer(tmpPos, 2, gl.FLOAT, false, 8, 8*4);
             attribs.push(tmpPos);
         }
     }
 
+
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
-    gl.drawArrays(gl.TRIANGLE_STRIP, 0, audioData.vbo.itemCount/2 - 6);
+
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, vertexIndex);
+    gl.drawElements(gl.TRIANGLES, (nSamples-1)*2, gl.UNSIGNED_SHORT, 0);
+    //gl.drawArrays(gl.TRIANGLES, 0, nSamples-1);
 
     for (let a of attribs) {
         gl.disableVertexAttribArray(a);
     }
 
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
     gl.bindBuffer(gl.ARRAY_BUFFER, null);
     gl.useProgram(null);
 }
     </script>
     <script language="x-shader/x-vertex" id="vshader">
+#define EPS 1E-6
 uniform float uInvert;
 precision highp float;
-attribute vec2 aPrev, aCurr, aNext;
-attribute float aDir;
-varying vec3 uva;
-varying vec2 delta;
+attribute vec2 aStart, aEnd;
+attribute float aIdx;
+varying vec2 vStart, vEnd;
+varying float vLen;
 float size = 100.;
 void main () {
-    uva.x = aDir;
-    vec2 prev = aPrev;
-    vec2 curr = aCurr;
-    vec2 next = aNext;
-    // TODO: handle edge cases
-    {
-        vec2 deltaNext = next.xy - curr.xy;
-        vec2 deltaPrev = curr.xy - prev.xy;
-        uva.z = 0.01/(length(deltaNext)+length(deltaPrev));
-        vec2 normNext = normalize(vec2(-deltaNext.y, deltaNext.x));
-        vec2 normPrev = normalize(vec2(-deltaPrev.y, deltaPrev.x));
-        vec2 average = normalize(normNext + normPrev);
-        delta = average / max(dot(average, normPrev), 0.6);
+    vStart = aStart;
+    vEnd = aEnd;
+
+    float tang;
+    vec2 current;
+    if (aIdx >= 2.0) {
+        current = aEnd;
+        tang = 1.0;
+    } else {
+        current = aStart;
+        tang = -1.0;
     }
-    delta = delta*aDir/size;
-    //gl_PointSize = 10.0;
-    //gl_Position = vec4(0.3, 0.3, 0.0, 1.0);
-    gl_Position = vec4((curr+delta)*uInvert,0.0,1.0);
+    float side = (mod(aIdx, 2.0)-0.5)*2.0;
+
+    vec2 dir = aEnd-aStart;
+    vLen = length(dir);
+    vec2 delta;
+    if (vLen > EPS) {
+        dir = dir / vLen;
+    } else {
+        dir = vec2(0.0, 1.0);
+    }
+    vec2 norm = vec2(-dir.y, dir.x);
+    gl_Position = vec4((current+(tang*dir+norm*side)/size*5.0)*uInvert,0.0,1.0);
+    //gl_PointSize = 20.0;
 }
     </script>
     <script language="x-shader/x-fragment" id="fshader">
 precision highp float;
-varying vec3 uva;
-varying vec2 delta;
+varying vec2 vStart, vEnd;
+varying float vLen;
 void main (void)
 {
-    float alpha = uva.z * exp(-uva.x*uva.x);
+    //float alpha = uva.z * exp(-uva.x*uva.x);
+    float alpha = 0.01/vLen;
     gl_FragColor = vec4(0.03, 1.0, 0.03, alpha);
 }
     </script>
