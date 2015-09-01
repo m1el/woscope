@@ -150,7 +150,7 @@ function draw(gl, shader) {
         }
         tmpPos = gl.getUniformLocation(shader, 'uSize');
         if (tmpPos && tmpPos !== -1) {
-            gl.uniform1f(tmpPos, 0.01);
+            gl.uniform1f(tmpPos, 0.012);
         }
     }
 
@@ -261,7 +261,7 @@ void main (void)
     vec2 xy = vec2((len/2.0+uSize)*uvl.x+len/2.0, uSize*uvl.y);
     float alpha;
 
-    float sigma = uSize/3.0;
+    float sigma = uSize/4.0;
     if (len < EPS) {
         alpha = exp(-pow(length(xy),2.0)/(2.0*sigma*sigma))/2.0/sqrt(uSize);
     } else {
