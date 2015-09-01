@@ -18,7 +18,7 @@ let flags = +search[1];
 let audioData = null;
 let quadIndex = null;
 let vertexIndex = null;
-const nSamples = 2048;
+const nSamples = 4096;
 
 function axhr(url, callback, progress) {
     let request = new XMLHttpRequest();
@@ -46,7 +46,7 @@ window.onload = function() {
     axhr(audioUrl, function(buffer) {
         $('htmlAudio').volume = 0.5;
         $('htmlAudio').src = audioUrl;
-        //$('htmlAudio').play();
+        $('htmlAudio').play();
         quadIndex = makeQuadIndex(gl);
         vertexIndex = makeVertexIndex(gl);
         audioData = prepareAudioData(gl, buffer);
@@ -145,6 +145,10 @@ function draw(gl, shader) {
         if (tmpPos && tmpPos !== -1) {
             gl.uniform1f(tmpPos, (flags & 2) ? -1 : 1);
         }
+        tmpPos = gl.getUniformLocation(shader, 'uSize');
+        if (tmpPos && tmpPos !== -1) {
+            gl.uniform1f(tmpPos, 0.01);
+        }
     }
 
     let attribs = [];
@@ -194,18 +198,15 @@ function draw(gl, shader) {
 }
     </script>
     <script language="x-shader/x-vertex" id="vshader">
+precision highp float;
 #define EPS 1E-6
 uniform float uInvert;
-precision highp float;
+uniform float uSize;
 attribute vec2 aStart, aEnd;
 attribute float aIdx;
-varying vec2 vStart, vEnd;
+varying vec3 uvl;
 varying float vLen;
-float size = 100.;
 void main () {
-    vStart = aStart;
-    vEnd = aEnd;
-
     float tang;
     vec2 current;
     if (aIdx >= 2.0) {
@@ -216,28 +217,54 @@ void main () {
         tang = -1.0;
     }
     float side = (mod(aIdx, 2.0)-0.5)*2.0;
+    uvl.xy = vec2(tang, side);
 
     vec2 dir = aEnd-aStart;
-    vLen = length(dir);
-    vec2 delta;
-    if (vLen > EPS) {
-        dir = dir / vLen;
+    uvl.z = length(dir);
+    if (uvl.z > EPS) {
+        dir = dir / uvl.z;
     } else {
-        dir = vec2(0.0, 1.0);
+        dir = vec2(1.0, 0.0);
     }
     vec2 norm = vec2(-dir.y, dir.x);
-    gl_Position = vec4((current+(tang*dir+norm*side)/size*5.0)*uInvert,0.0,1.0);
+    gl_Position = vec4((current+(tang*dir+norm*side)*uSize)*uInvert,0.0,1.0);
     //gl_PointSize = 20.0;
 }
     </script>
     <script language="x-shader/x-fragment" id="fshader">
 precision highp float;
-varying vec2 vStart, vEnd;
-varying float vLen;
+#define EPS 1E-6
+#define TAU 6.283185307179586
+#define TAUR 2.5066282746310002
+#define SQRT2 1.4142135623730951
+uniform float uSize;
+precision highp float;
+varying vec3 uvl;
+// A standard gaussian function, used for weighting samples
+float gaussian(float x, float sigma) {
+  return exp(-(x * x) / (2.0 * sigma * sigma)) / (TAUR * sigma);
+}
+
+// This approximates the error function, needed for the gaussian integral
+float erf(float x) {
+  float s = sign(x), a = abs(x);
+  x = 1.0 + (0.278393 + (0.230389 + 0.078108 * (a * a)) * a) * a;
+  x *= x;
+  return s - s / (x * x);
+}
 void main (void)
 {
-    //float alpha = uva.z * exp(-uva.x*uva.x);
-    float alpha = 0.01/vLen;
+    float len = uvl.z;
+    vec2 xy = vec2((len/2.0+uSize)*uvl.x+len/2.0, uSize*uvl.y);
+    float alpha;
+
+    float sigma = uSize/3.0;
+    if (len < EPS) {
+        alpha = exp(-pow(length(xy),2.0)/(2.0*sigma*sigma))/2.0/sqrt(uSize);
+    } else {
+        alpha = erf((len-xy.x)/SQRT2/sigma) + erf(xy.x/SQRT2/sigma);
+        alpha *= exp(-xy.y*xy.y/(2.0*sigma*sigma))/2.0/len*uSize;
+    }
     gl_FragColor = vec4(0.03, 1.0, 0.03, alpha);
 }
     </script>
