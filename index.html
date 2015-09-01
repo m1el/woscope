@@ -8,8 +8,8 @@ html { background: black; }
 body { width:800px;margin:auto; }
 audio {width: 800px;}
     </style>
-    <script src="gl.js"></script>
-    <script>
+    <script src="gl.js" data-fix-firefox=true></script>
+    <script data-fix-firefox=true>
 'use strict';
 let audioCtx = new AudioContext();
 let search = location.search.substr(1).split('&');
@@ -133,7 +133,10 @@ function loadWaveAtPosition(gl, position) {
 
 function $(id) { return document.getElementById(id); }
 
-function getText(id) { return $(id).innerText; }
+function getText(id) {
+    let c = $(id);
+    return c && c.firstChild && c.firstChild.data;
+}
 
 function draw(gl, shader) {
     loadWaveAtPosition(gl, $('htmlAudio').currentTime);
@@ -268,6 +271,26 @@ void main (void)
     gl_FragColor = vec4(0.03, 1.0, 0.03, alpha);
 }
     </script>
+    <script>
+// I refuse to replace `let` with `var`s
+if (!('audioCtx' in window) && navigator.userAgent.match(/Firefox/)) {
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Trying to re-evaluate scripts with js ver1.7 attribute')
+        var scripts = document.querySelectorAll('script[data-fix-firefox]');
+        [].forEach.call(scripts, function(s) {
+           document.head.removeChild(s);
+           var copy = document.createElement('script');
+           if (s.src) {
+               copy.src = s.src;
+           } else {
+               copy.innerHTML = s.innerHTML;
+           }
+           copy.setAttribute('type', 'application/javascript;version=1.7');
+           document.head.appendChild(copy);
+        });
+    });
+}
+</script>
 </head>
 <body style="width:800px;margin:auto;">
 <canvas id="c" width=800 height=800></canvas><br>
