@@ -64,9 +64,9 @@ function initGl(canvas) {
 }
 
 function makeQuadIndex(gl) {
-    let index = new Int32Array(nSamples/2);
+    let index = new Int16Array(nSamples*2);
     for (let i = index.length; i--; ) {
-        index[i] = 0x03020100;
+        index[i] = i;
     }
     let vbo = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
@@ -161,7 +161,7 @@ function draw(gl, shader) {
         let idxAttr = gl.getAttribLocation(shader, 'aIdx');
         if (idxAttr > -1) {
             gl.enableVertexAttribArray(idxAttr);
-            gl.vertexAttribPointer(idxAttr, 1, gl.BYTE, false, 1, 0);
+            gl.vertexAttribPointer(idxAttr, 1, gl.SHORT, false, 2, 0);
             attribs.push(idxAttr);
         }
     }
@@ -207,20 +207,22 @@ uniform float uInvert;
 uniform float uSize;
 attribute vec2 aStart, aEnd;
 attribute float aIdx;
-varying vec3 uvl;
+varying vec4 uvl;
 varying float vLen;
 void main () {
     float tang;
     vec2 current;
-    if (aIdx >= 2.0) {
+    float idx = mod(aIdx,4.0);
+    if (idx >= 2.0) {
         current = aEnd;
         tang = 1.0;
     } else {
         current = aStart;
         tang = -1.0;
     }
-    float side = (mod(aIdx, 2.0)-0.5)*2.0;
+    float side = (mod(idx, 2.0)-0.5)*2.0;
     uvl.xy = vec2(tang, side);
+    uvl.w = floor(aIdx / 4.0 + 0.5);
 
     vec2 dir = aEnd-aStart;
     uvl.z = length(dir);
@@ -242,7 +244,7 @@ precision highp float;
 #define SQRT2 1.4142135623730951
 uniform float uSize;
 precision highp float;
-varying vec3 uvl;
+varying vec4 uvl;
 // A standard gaussian function, used for weighting samples
 float gaussian(float x, float sigma) {
   return exp(-(x * x) / (2.0 * sigma * sigma)) / (TAUR * sigma);
@@ -268,6 +270,8 @@ void main (void)
         alpha = erf((len-xy.x)/SQRT2/sigma) + erf(xy.x/SQRT2/sigma);
         alpha *= exp(-xy.y*xy.y/(2.0*sigma*sigma))/2.0/len*uSize;
     }
+    float afterglow = smoothstep(0.0, 0.33, uvl.w/2048.0);
+    alpha *= afterglow;
     gl_FragColor = vec4(0.03, 1.0, 0.03, alpha);
 }
     </script>
