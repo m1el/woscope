@@ -19,6 +19,7 @@ let audioData = null;
 let quadIndex = null;
 let vertexIndex = null;
 const nSamples = 4096;
+let scratchBuffer = new Float32Array(nSamples*4);
 
 function axhr(url, callback, progress) {
     let request = new XMLHttpRequest();
@@ -118,7 +119,7 @@ function loadWaveAtPosition(gl, position) {
     position = Math.floor(position*44100);
     let end = Math.min(audioData.left.length, position+nSamples) - 1,
         len = end - position;
-    let subArr = new Float32Array(nSamples*4),
+    let subArr = scratchBuffer,
         left = audioData.left,
         right = audioData.right;
     for (let i = 0; i < len; i++) {
