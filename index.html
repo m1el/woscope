@@ -4,13 +4,14 @@
     <meta charset="UTF-8">
     <title>woscilloscope</title>
     <style>
-html { background: black; }
+html { background: black; color: #ddd; }
 body { width:800px;margin:auto; }
 audio { width: 800px; }
-h2 { text-align: center; color: #ddd; }
+h2 { text-align: center; }
 ul { text-align: center; font-size: 20px; }
 li { display: inline; margin: 0 10px 0 10px; }
 a { color: #2d2; }
+footer { text-align: center; font-size: 18px; }
     </style>
     <script src="all.js" data-fix-firefox=true> </script>
     <script>
@@ -45,6 +46,9 @@ varying float vLen;
 void main () {
     float tang;
     vec2 current;
+    // All points in quad contain the same data:
+    // segment start point and segment end point.
+    // We determine point position from it's index.
     float idx = mod(aIdx,4.0);
     if (idx >= 2.0) {
         current = aEnd;
@@ -62,6 +66,7 @@ void main () {
     if (uvl.z > EPS) {
         dir = dir / uvl.z;
     } else {
+    // If the segment is too short draw a square;
         dir = vec2(1.0, 0.0);
     }
     vec2 norm = vec2(-dir.y, dir.x);
@@ -99,8 +104,10 @@ void main (void)
 
     float sigma = uSize/4.0;
     if (len < EPS) {
+    // If the beam segment is too short, just calculate intensity at the position.
         alpha = exp(-pow(length(xy),2.0)/(2.0*sigma*sigma))/2.0/sqrt(uSize);
     } else {
+    // Otherwise, use analytical integral for accumulated intensity.
         alpha = erf((len-xy.x)/SQRT2/sigma) + erf(xy.x/SQRT2/sigma);
         alpha *= exp(-xy.y*xy.y/(2.0*sigma*sigma))/2.0/len*uSize;
     }
@@ -167,5 +174,6 @@ void main (void) {
 <audio controls id="htmlAudio"></audio><br>
 <h2 id="songInfo">song info goes here</h2>
 <ul id="playList"></ul>
+<footer><a href="https://github.com/m1el/woscope">woscope</a> by m1el</footer>
 </body>
 </html>

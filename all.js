@@ -305,7 +305,7 @@ function prepareAudioData(gl, buffer) {
 }
 
 function loadWaveAtPosition(gl, position) {
-    position += 1/120;
+    position = Math.max(0, position - 1/120);
     position = Math.floor(position*44100);
     let end = Math.min(audioData.left.length, position+nSamples) - 1,
         len = end - position;
