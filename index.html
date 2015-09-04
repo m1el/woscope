@@ -6,19 +6,49 @@
     <style>
 html { background: black; }
 body { width:800px;margin:auto; }
-audio {width: 800px;}
+audio { width: 800px; }
+h2 { text-align: center; color: #ddd; }
     </style>
     <script src="gl.js" data-fix-firefox=true></script>
     <script data-fix-firefox=true>
 'use strict';
-let audioCtx = new AudioContext();
+
+let libraryInfo = [
+    {
+        file: 'khrang.ogg',
+        author: 'Jerobeam Fenderson',
+        title: 'Khrậng',
+        swap: true
+    },
+    {
+        file: 'oscilofun.ogg',
+        author: 'ATOM DELTA',
+        title: 'Oscillofun',
+        inverse: true
+    },
+    {
+        file: 'alpha_molecule.ogg',
+        author: 'Alexander Taylor',
+        title: 'Alexander Taylor',
+        inverse: true
+    },
+];
+
+let libraryDict = {};
+for (let e of libraryInfo) {
+    libraryDict[e.file] = e;
+}
+
 let search = location.search.substr(1).split('&');
+let file = search[0];
 let audioUrl = search[0] ? './' + search[0] : './khrang.m4a';
 let flags = +search[1];
+
+let audioCtx = new AudioContext();
 let audioData = null;
 let quadIndex = null;
 let vertexIndex = null;
-const nSamples = 4096;
+let nSamples = 4096;
 let scratchBuffer = new Float32Array(nSamples*4);
 let doBloom = false;
 let frameBuffer = null;
@@ -43,6 +73,15 @@ function axhr(url, callback, progress) {
 window.onload = function() {
     let canvas = $('c'),
         gl = initGl(canvas);
+
+    if (file in libraryDict) {
+        let info = libraryDict[file],
+            text = document.createTextNode(info.author + ' — ' + info.title),
+            songInfo = $('songInfo');
+        songInfo.innerHTML = '';
+        songInfo.appendChild(text);
+    }
+
     gl.lineShader = CreateShader(gl, getText('vsLine'), getText('fsLine'));
     gl.blurShader = CreateShader(gl, getText('vsBlurTranspose'), getText('fsBlurTranspose'));
     gl.outputShader = CreateShader(gl, getText('vsOutput'), getText('fsOutput'));
@@ -180,7 +219,7 @@ function prepareAudioData(gl, buffer) {
 }
 
 function loadWaveAtPosition(gl, position) {
-    position += 1/60;
+    position += 1/120;
     position = Math.floor(position*44100);
     let end = Math.min(audioData.left.length, position+nSamples) - 1,
         len = end - position;
@@ -532,6 +571,7 @@ void main (void) {
 </head>
 <body>
 <canvas id="c" width=800 height=800></canvas><br>
-<audio controls id="htmlAudio">
+<audio controls id="htmlAudio"></audio><br>
+<h2 id="songInfo">song info goes here</h2>
 </body>
 </html>
