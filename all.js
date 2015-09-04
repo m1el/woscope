@@ -373,20 +373,19 @@ function drawProgress(gl, progress) {
 
     gl.bindBuffer(gl.ARRAY_BUFFER, outQuadArray);
 
-    let attribs = [];
+    let posAttr = -1;
     {
-        let tmpPos = gl.getAttribLocation(gl.progressShader, 'aPos');
-        if (tmpPos > -1) {
-            gl.enableVertexAttribArray(tmpPos);
-            gl.vertexAttribPointer(tmpPos, 2, gl.SHORT, false, 8, 0);
-            attribs.push(tmpPos);
+        posAttr = gl.getAttribLocation(gl.progressShader, 'aPos');
+        if (posAttr > -1) {
+            gl.enableVertexAttribArray(posAttr);
+            gl.vertexAttribPointer(posAttr, 2, gl.SHORT, false, 8, 0);
         }
     }
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
-    for (let a of attribs) {
-        gl.disableVertexAttribArray(a);
+    if (posAttr > -1) {
+        gl.disableVertexAttribArray(posAttr);
     }
 
     gl.bindBuffer(gl.ARRAY_BUFFER, null);
