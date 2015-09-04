@@ -74,33 +74,47 @@ window.onload = function() {
     gl.lineShader = CreateShader(gl, getText('vsLine'), getText('fsLine'));
     gl.blurShader = CreateShader(gl, getText('vsBlurTranspose'), getText('fsBlurTranspose'));
     gl.outputShader = CreateShader(gl, getText('vsOutput'), getText('fsOutput'));
+    gl.progressShader = CreateShader(gl, getText('vsProgress'), getText('fsProgress'));
+
+    quadIndex = makeQuadIndex(gl);
+    vertexIndex = makeVertexIndex(gl);
+    outQuadArray = makeOutQuad(gl);
+
+    {
+        let tmp = makeFrameBuffer(gl, canvas.width, canvas.height);
+        frameBuffer = tmp.frameBuffer;
+        lineTexture = tmp.lineTexture;
+        blurTexture = tmp.blurTexture;
+        blurTexture2 = tmp.blurTexture2;
+    }
 
     let loop = function() {
         draw(gl);
         requestAnimationFrame(loop);
-    }
+    };
+
+    let progress = 0;
+
+    let progressLoop = function() {
+        if (progress >= 1) {
+            return;
+        }
+        drawProgress(gl, progress);
+        requestAnimationFrame(progressLoop);
+    };
+    progressLoop();
+
+    $('htmlAudio').volume = 0.5;
+    $('htmlAudio').src = audioUrl;
 
     axhr(audioUrl, function(buffer) {
-        $('htmlAudio').volume = 0.5;
-        $('htmlAudio').src = audioUrl;
         $('htmlAudio').play();
-
-        quadIndex = makeQuadIndex(gl);
-        vertexIndex = makeVertexIndex(gl);
-        outQuadArray = makeOutQuad(gl);
-
-        {
-            let tmp = makeFrameBuffer(gl, canvas.width, canvas.height);
-            frameBuffer = tmp.frameBuffer;
-            lineTexture = tmp.lineTexture;
-            blurTexture = tmp.blurTexture;
-            blurTexture2 = tmp.blurTexture2;
-        }
 
         audioData = prepareAudioData(gl, buffer);
         loop();
 
     }, function(e) {
+        progress = e.total ? e.loaded / e.total : 1.0;
         console.log('progress: ' + e.loaded + ' / ' + e.total);
     });
 };
@@ -339,6 +353,44 @@ function activateTargetTexture(gl, texture) {
 
     gl.bindTexture(gl.TEXTURE_2D, null);
     gl.bindRenderbuffer(gl.RENDERBUFFER, null);
+}
+
+function drawProgress(gl, progress) {
+    let width = 800,
+        height = 800;
+
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, width, height);
+    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+    gl.useProgram(gl.progressShader);
+
+    {
+        let tmpPos = gl.getUniformLocation(gl.progressShader, 'uProgress');
+        if (tmpPos && tmpPos !== -1) {
+            gl.uniform1f(tmpPos, progress);
+        }
+    }
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, outQuadArray);
+
+    let attribs = [];
+    {
+        let tmpPos = gl.getAttribLocation(gl.progressShader, 'aPos');
+        if (tmpPos > -1) {
+            gl.enableVertexAttribArray(tmpPos);
+            gl.vertexAttribPointer(tmpPos, 2, gl.SHORT, false, 8, 0);
+            attribs.push(tmpPos);
+        }
+    }
+
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+
+    for (let a of attribs) {
+        gl.disableVertexAttribArray(a);
+    }
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    gl.useProgram(null);
 }
 
 function draw(gl) {
