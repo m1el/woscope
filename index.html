@@ -20,6 +20,7 @@ let quadIndex = null;
 let vertexIndex = null;
 const nSamples = 4096;
 let scratchBuffer = new Float32Array(nSamples*4);
+let doBloom = false;
 let frameBuffer = null;
 let lineTexture = null;
 let blurTexture = null;
@@ -218,45 +219,53 @@ function activateTargetTexture(gl, texture) {
 function draw(gl) {
     loadWaveAtPosition(gl, $('htmlAudio').currentTime);
 
-    gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
-    activateTargetTexture(gl, lineTexture);
     let width = 800,
         height = 800;
-    gl.viewport(0, 0, width, height);
-    drawLine(gl, gl.lineShader);
 
-    { // generate mipmap
-        gl.bindTexture(gl.TEXTURE_2D, lineTexture);
-        gl.generateMipmap(gl.TEXTURE_2D);
-        gl.bindTexture(gl.TEXTURE_2D, null);
+    if (!doBloom) {
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.viewport(0, 0, width, height);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        drawLine(gl, gl.lineShader);
+    } else {
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
+        activateTargetTexture(gl, lineTexture);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.viewport(0, 0, width, height);
+        drawLine(gl, gl.lineShader);
+
+        { // generate mipmap
+            gl.bindTexture(gl.TEXTURE_2D, lineTexture);
+            gl.generateMipmap(gl.TEXTURE_2D);
+            gl.bindTexture(gl.TEXTURE_2D, null);
+        }
+
+        // downscale
+        activateTargetTexture(gl, blurTexture2);
+        gl.viewport(0, 0, width/2, height/2);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        drawTexture(gl, lineTexture, width, gl.outputShader);
+
+        // blur x
+        activateTargetTexture(gl, blurTexture);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        drawTexture(gl, blurTexture2, width/2, gl.blurShader);
+
+        // blur y
+        activateTargetTexture(gl, blurTexture2);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        drawTexture(gl, blurTexture, width/2, gl.blurShader);
+
+        gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+        gl.viewport(0, 0, width, height);
+        drawTexture(gl, lineTexture, width, gl.outputShader);
+        drawTexture(gl, blurTexture2, width/2, gl.outputShader, 0.5);
     }
-
-    // downscale
-    activateTargetTexture(gl, blurTexture2);
-    gl.viewport(0, 0, width/2, height/2);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    drawTexture(gl, lineTexture, width, gl.outputShader);
-
-    // blur x
-    activateTargetTexture(gl, blurTexture);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    drawTexture(gl, blurTexture2, width/2, gl.blurShader);
-
-    // blur y
-    activateTargetTexture(gl, blurTexture2);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    drawTexture(gl, blurTexture, width/2, gl.blurShader);
-
-    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    gl.viewport(0, 0, width, height);
-    drawTexture(gl, lineTexture, width, gl.outputShader);
-    drawTexture(gl, blurTexture2, width/2, gl.outputShader, 0.5);
 }
 
 function drawLine(gl, shader) {
-    gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-
     gl.useProgram(shader);
     {
         let tmpPos = gl.getUniformLocation(shader, 'uInvert');
