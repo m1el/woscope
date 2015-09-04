@@ -12,7 +12,6 @@ ul { text-align: center; font-size: 20px; }
 li { display: inline; margin: 0 10px 0 10px; }
 a { color: #2d2; }
     </style>
-    <script src="gl.js" data-fix-firefox=true></script>
     <script data-fix-firefox=true>
 'use strict';
 
@@ -179,6 +178,50 @@ function initGl(canvas) {
     gl.clearColor( 0.0, 0.0, 0.0, 1.0 );
     return gl;
 }
+
+function CreateShader(gl, vsSource, fsSource) {
+    if (typeof WebGLRenderingContext !== 'function' ||
+            !(gl instanceof WebGLRenderingContext)) {
+        throw new Error('CreateShader: no WebGL context');
+    }
+
+    let vs = gl.createShader(gl.VERTEX_SHADER);
+    gl.shaderSource(vs, vsSource);
+    gl.compileShader(vs);
+    if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) {
+        let infoLog = gl.getShaderInfoLog(vs);
+        gl.deleteShader(vs);
+        throw new Error('CreateShader, vertex shader compilation:\n' + infoLog);
+    }
+
+    let fs = gl.createShader(gl.FRAGMENT_SHADER);
+    gl.shaderSource(fs, fsSource);
+    gl.compileShader(fs);
+    if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
+        let infoLog = gl.getShaderInfoLog(fs);
+        gl.deleteShader(vs);
+        gl.deleteShader(fs);
+        throw new Error('CreateShader, fragment shader compilation:\n' + infoLog);
+    }
+
+    let program = gl.createProgram();
+
+    gl.attachShader(program, vs);
+    gl.deleteShader(vs);
+
+    gl.attachShader(program, fs);
+    gl.deleteShader(fs);
+
+    gl.linkProgram(program);
+
+    if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+        let infoLog = gl.getProgramInfoLog(program);
+        gl.deleteProgram(program);
+        throw new Error('CreateShader, linking:\n' + infoLog);
+    }
+
+    return program;
+};
 
 function makeQuadIndex(gl) {
     let index = new Int16Array(nSamples*2);
