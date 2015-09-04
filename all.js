@@ -35,7 +35,7 @@ if (!query.file) {
 }
 
 let file = query.file;
-let audioUrl = './' + file;
+let audioUrl = './woscope-music/' + file;
 let swap = query.swap;
 let invert = query.invert;
 
