@@ -67,7 +67,8 @@ function axhr(url, callback, progress) {
 
 window.onload = function() {
     let canvas = $('c'),
-        gl = initGl(canvas);
+        gl = initGl(canvas),
+        htmlAudio = $('htmlAudio');
 
     updatePageInfo();
 
@@ -104,11 +105,14 @@ window.onload = function() {
     };
     progressLoop();
 
-    $('htmlAudio').volume = 0.5;
-    $('htmlAudio').src = audioUrl;
+    htmlAudio.volume = 0.5;
+    htmlAudio.src = audioUrl;
 
     axhr(audioUrl, function(buffer) {
-        $('htmlAudio').play();
+        htmlAudio.play();
+        htmlAudio.onload = function() {
+            htmlAudio.play();
+        };
 
         audioData = prepareAudioData(gl, buffer);
         loop();
