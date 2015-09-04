@@ -11,6 +11,9 @@ h2 { text-align: center; margin: 5px; }
 ul { text-align: center; font-size: 20px; margin: 5px; }
 li { display: inline; margin: 0 10px 0 10px; }
 a { color: #2d2; }
+.nogl { display: none; }
+noscript, .nogl { position: absolute; width: 800px; padding-top: 200px;
+text-align: center; font-size: 32px; }
 footer { text-align: center; font-size: 18px; }
     </style>
     <script src="all.js" data-fix-firefox=true> </script>
@@ -194,6 +197,8 @@ void main (void) {
 </script>
 </head>
 <body>
+<noscript>Did you expect this thing to work without js enabled?</noscript>
+<div id="nogl" class="nogl">It seem you don't have a WebGL-capable web browser :(</div>
 <canvas id="c" width=800 height=800></canvas><br>
 <audio controls id="htmlAudio"></audio><br>
 <h2 id="songInfo">song info goes here</h2>

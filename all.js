@@ -178,6 +178,10 @@ function updatePageInfo() {
 
 function initGl(canvas) {
     let gl = canvas.getContext('webgl');
+    if (!gl) {
+        $('nogl').style.display = 'block';
+        throw new Exception('no gl :C');
+    }
     gl.clearColor( 0.0, 0.0, 0.0, 1.0 );
     return gl;
 }
