@@ -8,6 +8,9 @@ html { background: black; }
 body { width:800px;margin:auto; }
 audio { width: 800px; }
 h2 { text-align: center; color: #ddd; }
+ul { text-align: center; font-size: 20px; }
+li { display: inline; margin: 0 10px 0 10px; }
+a { color: #2d2; }
     </style>
     <script src="gl.js" data-fix-firefox=true></script>
     <script data-fix-firefox=true>
@@ -18,19 +21,22 @@ let libraryInfo = [
         file: 'khrang.ogg',
         author: 'Jerobeam Fenderson',
         title: 'Khrậng',
-        swap: true
+        link: 'https://www.youtube.com/watch?v=vAyCl4IHIz8',
+        swap: true,
     },
     {
-        file: 'oscilofun.ogg',
+        file: 'oscillofun.ogg',
         author: 'ATOM DELTA',
         title: 'Oscillofun',
-        inverse: true
+        link: 'https://www.youtube.com/watch?v=o4YyI6_y6kw',
+        invert: true,
     },
     {
         file: 'alpha_molecule.ogg',
         author: 'Alexander Taylor',
-        title: 'Alexander Taylor',
-        inverse: true
+        title: 'The Alpha Molecule',
+        link: 'https://www.youtube.com/watch?v=XM8kYRS-cNk',
+        invert: true,
     },
 ];
 
@@ -39,10 +45,15 @@ for (let e of libraryInfo) {
     libraryDict[e.file] = e;
 }
 
-let search = location.search.substr(1).split('&');
-let file = search[0];
-let audioUrl = search[0] ? './' + search[0] : './khrang.m4a';
-let flags = +search[1];
+let query = parseq(location.search);
+if (!query.file) {
+    query = libraryInfo[0];
+}
+
+let file = query.file;
+let audioUrl = './' + file;
+let swap = query.swap;
+let invert = query.invert;
 
 let audioCtx = new AudioContext();
 let audioData = null;
@@ -74,13 +85,7 @@ window.onload = function() {
     let canvas = $('c'),
         gl = initGl(canvas);
 
-    if (file in libraryDict) {
-        let info = libraryDict[file],
-            text = document.createTextNode(info.author + ' — ' + info.title),
-            songInfo = $('songInfo');
-        songInfo.innerHTML = '';
-        songInfo.appendChild(text);
-    }
+    updatePageInfo();
 
     gl.lineShader = CreateShader(gl, getText('vsLine'), getText('fsLine'));
     gl.blurShader = CreateShader(gl, getText('vsBlurTranspose'), getText('fsBlurTranspose'));
@@ -115,6 +120,59 @@ window.onload = function() {
         console.log('progress: ' + e.loaded + ' / ' + e.total);
     });
 };
+
+function parseq(search) {
+    search = search.replace(/^\?/, '');
+    let obj = {};
+    for (let pair of search.split('&')) {
+        pair = pair.split('=');
+        obj[decodeURIComponent(pair[0])] =
+            pair.length > 1 ? decodeURIComponent(pair[1]) : true;
+    }
+    return obj;
+}
+
+function dumpq(obj) {
+    return Object.keys(obj).map(function(key) {
+        if (obj[key] === true) {
+            return encodeURIComponent(key);
+        } else {
+            return encodeURIComponent(key) + '=' + encodeURIComponent(obj[key]);
+        }
+    }).join('&');
+}
+
+function updatePageInfo() {
+    if (file in libraryDict) {
+        let info = libraryDict[file],
+            text = document.createTextNode(info.author + ' — ' + info.title + ' '),
+            songInfo = $('songInfo'),
+            a = document.createElement('a'),
+            linkText = document.createTextNode('[link]');
+
+        a.appendChild(linkText);
+        a.href = info.link;
+        songInfo.innerHTML = '';
+        songInfo.appendChild(text);
+        songInfo.appendChild(a);
+    }
+
+    let ul = $('playList');
+    ul.innerHTML = '';
+    for (let song of libraryInfo) {
+        let a = document.createElement('a'),
+            li = document.createElement('li');
+        a.appendChild(document.createTextNode(song.title));
+
+        let q = {file: song.file};
+        if (song.swap) { q.swap = true; }
+        if (song.invert) { q.invert = true; }
+        a.href = '?' + dumpq(q);
+
+        li.appendChild(a);
+        ul.appendChild(li);
+    }
+}
 
 function initGl(canvas) {
     let gl = canvas.getContext('webgl');
@@ -204,7 +262,7 @@ function prepareAudioData(gl, buffer) {
     let left = buffer.getChannelData(0),
         right = buffer.getChannelData(1);
 
-    if (flags&1) {
+    if (swap) {
         let tmp = left;
         left = right;
         right = tmp;
@@ -309,7 +367,7 @@ function drawLine(gl, shader) {
     {
         let tmpPos = gl.getUniformLocation(shader, 'uInvert');
         if (tmpPos && tmpPos !== -1) {
-            gl.uniform1f(tmpPos, (flags & 2) ? -1 : 1);
+            gl.uniform1f(tmpPos, (invert) ? -1 : 1);
         }
         tmpPos = gl.getUniformLocation(shader, 'uSize');
         if (tmpPos && tmpPos !== -1) {
@@ -573,5 +631,6 @@ void main (void) {
 <canvas id="c" width=800 height=800></canvas><br>
 <audio controls id="htmlAudio"></audio><br>
 <h2 id="songInfo">song info goes here</h2>
+<ul id="playList"></ul>
 </body>
 </html>
