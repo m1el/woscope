@@ -1,0 +1,3 @@
+[submodule "woscope-music"]
+	path = woscope-music
+	url = https://github.com/m1el/woscope-music.git
