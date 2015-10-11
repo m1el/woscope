@@ -323,12 +323,13 @@ function prepareAudioData(gl, buffer) {
         vbo: vbo,
         left: left,
         right: right,
+        sampleRate: buffer.sampleRate,
     };
 }
 
 function loadWaveAtPosition(gl, position) {
     position = Math.max(0, position - 1/120);
-    position = Math.floor(position*44100);
+    position = Math.floor(position*audioData.sampleRate);
     let end = Math.min(audioData.left.length, position+nSamples) - 1,
         len = end - position;
     let subArr = scratchBuffer,
