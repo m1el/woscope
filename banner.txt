@@ -1,0 +1,6 @@
+/**
+ * @name    <%= pkg.name %>
+ * @version <%= pkg.version %> | <%= moment().format('MMMM Do YYYY') %>
+ * @author  <%= pkg.author %>
+ * @license <%= pkg.license %>
+ */

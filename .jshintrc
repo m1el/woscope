@@ -1,0 +1,10 @@
+{
+  "esnext": true,
+  "browser": true,
+  "browserify": true,
+  "devel": true,
+  "globals": {
+    "AudioContext": true,
+    "webkitAudioContext": true
+  }
+}
