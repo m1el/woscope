@@ -25,7 +25,7 @@ function axhr(url, callback, progress) {
         audioCtx.decodeAudioData(request.response, function(buffer) {
             callback(buffer);
         });
-    }
+    };
     request.send();
 }
 
@@ -93,7 +93,7 @@ function initGl(canvas) {
     let gl = canvas.getContext('webgl');
     if (!gl) {
         $('nogl').style.display = 'block';
-        throw new Exception('no gl :C');
+        throw new Error('no gl :C');
     }
     gl.clearColor( 0.0, 0.0, 0.0, 1.0 );
     return gl;
@@ -141,7 +141,7 @@ function CreateShader(gl, vsSource, fsSource) {
     }
 
     return program;
-};
+}
 
 function makeQuadIndex(gl) {
     let index = new Int16Array(nSamples*2);
