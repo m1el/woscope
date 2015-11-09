@@ -16,27 +16,7 @@ noscript, .nogl { position: absolute; width: 800px; padding-top: 200px;
 text-align: center; font-size: 32px; }
 footer { text-align: center; font-size: 18px; }
     </style>
-    <script src="dist/demo.js" data-fix-firefox=true> </script>
-    <script>
-// I refuse to replace `let` with `var`s
-if (!('audioCtx' in window) && navigator.userAgent.match(/Firefox/)) {
-    document.addEventListener('DOMContentLoaded', function() {
-        console.log('Trying to re-evaluate scripts with js ver1.7 attribute')
-        var scripts = document.querySelectorAll('script[data-fix-firefox]');
-        [].forEach.call(scripts, function(s) {
-           document.head.removeChild(s);
-           var copy = document.createElement('script');
-           if (s.src) {
-               copy.src = s.src;
-           } else {
-               copy.innerHTML = s.innerHTML;
-           }
-           copy.setAttribute('type', 'application/javascript;version=1.7');
-           document.head.appendChild(copy);
-        });
-    });
-}
-    </script>
+    <script src="dist/demo.js"> </script>
 </head>
 <body>
 <noscript>Did you expect this thing to work without js enabled?</noscript>
