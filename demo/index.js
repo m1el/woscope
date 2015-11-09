@@ -51,6 +51,8 @@ window.onload = function() {
     htmlAudio.load();
     htmlAudio.volume = 0.5;
 
+    window.onresize();
+
     woscope({
       canvas: canvas,
       htmlAudio: htmlAudio,
@@ -58,6 +60,13 @@ window.onload = function() {
       swap: query.swap,
       invert: query.invert
     });
+};
+
+window.onresize = function () {
+    let canvas = $('c'),
+        length = Math.min(window.innerHeight, canvas.parentNode.offsetWidth);
+    canvas.width = length;
+    canvas.height = length;
 };
 
 function $(id) { return document.getElementById(id); }

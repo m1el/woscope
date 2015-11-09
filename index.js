@@ -80,7 +80,7 @@ function woscope(config) {
     }
 
     let loop = function() {
-        draw(gl, htmlAudio);
+        draw(gl, canvas, htmlAudio);
         requestAnimationFrame(loop);
     };
 
@@ -90,7 +90,7 @@ function woscope(config) {
         if (progress >= 1) {
             return;
         }
-        drawProgress(gl, progress);
+        drawProgress(gl, canvas, progress);
         requestAnimationFrame(progressLoop);
     };
     progressLoop();
@@ -303,9 +303,9 @@ function activateTargetTexture(gl, texture) {
     gl.bindRenderbuffer(gl.RENDERBUFFER, null);
 }
 
-function drawProgress(gl, progress) {
-    let width = 800,
-        height = 800;
+function drawProgress(gl, canvas, progress) {
+    let width = canvas.width,
+        height = canvas.height;
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, width, height);
@@ -340,11 +340,11 @@ function drawProgress(gl, progress) {
     gl.useProgram(null);
 }
 
-function draw(gl, htmlAudio) {
+function draw(gl, canvas, htmlAudio) {
     loadWaveAtPosition(gl, htmlAudio.currentTime);
 
-    let width = 800,
-        height = 800;
+    let width = canvas.width,
+        height = canvas.height;
 
     if (!doBloom) {
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
