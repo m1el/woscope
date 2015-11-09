@@ -13,7 +13,17 @@ let shadersDict = {
     fsProgress: glslify(__dirname + '/shaders/fsProgress.glsl'),
 };
 
-let audioCtx = new AudioContext();
+let audioCtx;
+try {
+    try {
+        audioCtx = new AudioContext();
+    } catch(e) {
+        audioCtx = new webkitAudioContext();
+    }
+} catch(e) {
+    throw new Error('Web Audio API is not supported in this browser');
+}
+
 let swap = false;
 let invert = false;
 let audioData = null;
@@ -112,8 +122,7 @@ function initGl(canvas) {
 }
 
 function CreateShader(gl, vsSource, fsSource) {
-    if (typeof WebGLRenderingContext !== 'function' ||
-            !(gl instanceof WebGLRenderingContext)) {
+    if (!supportsWebGl()) {
         throw new Error('CreateShader: no WebGL context');
     }
 
@@ -275,6 +284,16 @@ function $(id) { return document.getElementById(id); }
 
 function getText(id) {
     return shadersDict[id];
+}
+
+function supportsWebGl() {
+    // from https://github.com/Modernizr/Modernizr/blob/master/feature-detects/webgl.js
+    let canvas = document.createElement('canvas'),
+        supports = 'probablySupportsContext' in canvas ? 'probablySupportsContext' : 'supportsContext';
+    if (supports in canvas) {
+        return canvas[supports]('webgl') || canvas[supports]('experimental-webgl');
+    }
+    return 'WebGLRenderingContext' in window;
 }
 
 function activateTargetTexture(gl, texture) {
