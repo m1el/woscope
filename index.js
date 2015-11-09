@@ -1,5 +1,17 @@
 'use strict';
 
+let glslify = require('glslify');
+
+let shadersDict = {
+    vsLine: glslify(__dirname + '/shaders/vsLine.glsl'),
+    fsLine: glslify(__dirname + '/shaders/fsLine.glsl'),
+    vsBlurTranspose: glslify(__dirname + '/shaders/vsBlurTranspose.glsl'),
+    fsBlurTranspose: glslify(__dirname + '/shaders/fsBlurTranspose.glsl'),
+    vsOutput: glslify(__dirname + '/shaders/vsOutput.glsl'),
+    fsOutput: glslify(__dirname + '/shaders/fsOutput.glsl'),
+    vsProgress: glslify(__dirname + '/shaders/vsProgress.glsl'),
+    fsProgress: glslify(__dirname + '/shaders/fsProgress.glsl'),
+};
 
 let audioCtx = new AudioContext();
 let swap = false;
@@ -262,8 +274,7 @@ function loadWaveAtPosition(gl, position) {
 function $(id) { return document.getElementById(id); }
 
 function getText(id) {
-    let c = $(id);
-    return c && c.firstChild && c.firstChild.data;
+    return shadersDict[id];
 }
 
 function activateTargetTexture(gl, texture) {

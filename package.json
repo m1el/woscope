@@ -22,10 +22,16 @@
     "demo": "budo demo/:dist/demo.js --live --open",
     "build": "browserify demo/ > dist/demo.js; browserify index.js --standalone woscope -p [bannerify --file banner.txt] > dist/woscope.js"
   },
+  "browserify": {
+    "transform": [
+      "glslify"
+    ]
+  },
   "devDependencies": {
     "bannerify": "^1.0.1",
     "browserify": "^12.0.1",
     "budo": "^6.0.1",
+    "glslify": "^2.3.1",
     "jshint": "^2.8.0"
   }
 }
