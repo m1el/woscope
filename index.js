@@ -55,8 +55,8 @@ module.exports = woscope;
 function woscope(config) {
     let canvas = config.canvas,
         gl = initGl(canvas),
-        htmlAudio = config.htmlAudio,
-        audioUrl = config.audioUrl || htmlAudio.currentSrc || htmlAudio.src,
+        audio = config.audio,
+        audioUrl = config.audioUrl || audio.currentSrc || audio.src,
         callback = config.callback || function () {};
 
     swap = config.swap;
@@ -80,7 +80,7 @@ function woscope(config) {
     }
 
     let loop = function() {
-        draw(gl, canvas, htmlAudio);
+        draw(gl, canvas, audio);
         requestAnimationFrame(loop);
     };
 
@@ -340,8 +340,8 @@ function drawProgress(gl, canvas, progress) {
     gl.useProgram(null);
 }
 
-function draw(gl, canvas, htmlAudio) {
-    loadWaveAtPosition(gl, htmlAudio.currentTime);
+function draw(gl, canvas, audio) {
+    loadWaveAtPosition(gl, audio.currentTime);
 
     let width = canvas.width,
         height = canvas.height;

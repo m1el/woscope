@@ -55,7 +55,7 @@ window.onload = function() {
 
     woscope({
       canvas: canvas,
-      htmlAudio: htmlAudio,
+      audio: htmlAudio,
       callback: function () { htmlAudio.play(); },
       swap: query.swap,
       invert: query.invert
