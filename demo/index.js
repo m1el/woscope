@@ -5,6 +5,7 @@ let woscope = require('../');
 let libraryInfo = [
     {
         file: 'khrang.ogg',
+        mpeg: 'khrang.mp3',
         author: 'Jerobeam Fenderson',
         title: 'Khrậng',
         link: 'https://www.youtube.com/watch?v=vAyCl4IHIz8',
@@ -12,6 +13,7 @@ let libraryInfo = [
     },
     {
         file: 'oscillofun.ogg',
+        mpeg: 'oscillofun.mp3',
         author: 'ATOM DELTA',
         title: 'Oscillofun',
         link: 'https://www.youtube.com/watch?v=o4YyI6_y6kw',
@@ -19,6 +21,7 @@ let libraryInfo = [
     },
     {
         file: 'alpha_molecule.ogg',
+        mpeg: 'alpha_molecule.mp3',
         author: 'Alexander Taylor',
         title: 'The Alpha Molecule',
         link: 'https://www.youtube.com/watch?v=XM8kYRS-cNk',
@@ -37,7 +40,6 @@ if (!query.file) {
 }
 
 let file = query.file;
-let audioUrl = './woscope-music/' + file;
 
 window.onload = function() {
     let canvas = $('c'),
@@ -45,12 +47,14 @@ window.onload = function() {
 
     updatePageInfo();
 
+    htmlAudio.src = './woscope-music/' + (htmlAudio.canPlayType('audio/ogg') ? file : libraryDict[file].mpeg);
+    htmlAudio.load();
     htmlAudio.volume = 0.5;
 
     woscope({
       canvas: canvas,
       htmlAudio: htmlAudio,
-      audioUrl: audioUrl,
+      callback: function () { htmlAudio.play(); },
       swap: query.swap,
       invert: query.invert
     });
