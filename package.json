@@ -20,7 +20,7 @@
   "scripts": {
     "lint": "jshint *.js demo/*.js",
     "demo": "budo demo/:dist/demo.js --live --open",
-    "build": "browserify demo/ > dist/demo.js; browserify index.js --standalone woscope -p [bannerify --file banner.txt] > dist/woscope.js"
+    "build": "browserify demo/ > dist/demo.js && browserify index.js --standalone woscope -p [bannerify --file banner.txt] > dist/woscope.js"
   },
   "browserify": {
     "transform": [

@@ -5,7 +5,7 @@ let woscope = require('../');
 let libraryInfo = [
     {
         file: 'khrang.ogg',
-        mpeg: 'khrang.mp3',
+        mpeg: 'khrang.m4a',
         author: 'Jerobeam Fenderson',
         title: 'Khrậng',
         link: 'https://www.youtube.com/watch?v=vAyCl4IHIz8',
@@ -30,9 +30,9 @@ let libraryInfo = [
 ];
 
 let libraryDict = {};
-for (let e of libraryInfo) {
+libraryInfo.forEach(function (e) {
     libraryDict[e.file] = e;
-}
+});
 
 let query = parseq(location.search);
 if (!query.file) {
@@ -74,11 +74,11 @@ function $(id) { return document.getElementById(id); }
 function parseq(search) {
     search = search.replace(/^\?/, '');
     let obj = {};
-    for (let pair of search.split('&')) {
+    search.split('&').forEach(function (pair) {
         pair = pair.split('=');
         obj[decodeURIComponent(pair[0])] =
             pair.length > 1 ? decodeURIComponent(pair[1]) : true;
-    }
+    });
     return obj;
 }
 
@@ -109,7 +109,7 @@ function updatePageInfo() {
 
     let ul = $('playList');
     ul.innerHTML = '';
-    for (let song of libraryInfo) {
+    libraryInfo.forEach(function (song) {
         let a = document.createElement('a'),
             li = document.createElement('li');
         a.appendChild(document.createTextNode(song.title));
@@ -121,5 +121,5 @@ function updatePageInfo() {
 
         li.appendChild(a);
         ul.appendChild(li);
-    }
+    });
 }

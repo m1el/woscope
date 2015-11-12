@@ -62,10 +62,10 @@ function woscope(config) {
     swap = config.swap;
     invert = config.invert;
 
-    gl.lineShader = CreateShader(gl, getText('vsLine'), getText('fsLine'));
-    gl.blurShader = CreateShader(gl, getText('vsBlurTranspose'), getText('fsBlurTranspose'));
-    gl.outputShader = CreateShader(gl, getText('vsOutput'), getText('fsOutput'));
-    gl.progressShader = CreateShader(gl, getText('vsProgress'), getText('fsProgress'));
+    gl.lineShader = createShader(gl, shadersDict.vsLine, shadersDict.fsLine);
+    gl.blurShader = createShader(gl, shadersDict.vsBlurTranspose, shadersDict.fsBlurTranspose);
+    gl.outputShader = createShader(gl, shadersDict.vsOutput, shadersDict.fsOutput);
+    gl.progressShader = createShader(gl, shadersDict.vsProgress, shadersDict.fsProgress);
 
     quadIndex = makeQuadIndex(gl);
     vertexIndex = makeVertexIndex(gl);
@@ -117,9 +117,9 @@ function initGl(canvas) {
     return gl;
 }
 
-function CreateShader(gl, vsSource, fsSource) {
+function createShader(gl, vsSource, fsSource) {
     if (!supportsWebGl()) {
-        throw new Error('CreateShader: no WebGL context');
+        throw new Error('createShader: no WebGL context');
     }
 
     let vs = gl.createShader(gl.VERTEX_SHADER);
@@ -128,7 +128,7 @@ function CreateShader(gl, vsSource, fsSource) {
     if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) {
         let infoLog = gl.getShaderInfoLog(vs);
         gl.deleteShader(vs);
-        throw new Error('CreateShader, vertex shader compilation:\n' + infoLog);
+        throw new Error('createShader, vertex shader compilation:\n' + infoLog);
     }
 
     let fs = gl.createShader(gl.FRAGMENT_SHADER);
@@ -138,7 +138,7 @@ function CreateShader(gl, vsSource, fsSource) {
         let infoLog = gl.getShaderInfoLog(fs);
         gl.deleteShader(vs);
         gl.deleteShader(fs);
-        throw new Error('CreateShader, fragment shader compilation:\n' + infoLog);
+        throw new Error('createShader, fragment shader compilation:\n' + infoLog);
     }
 
     let program = gl.createProgram();
@@ -154,7 +154,7 @@ function CreateShader(gl, vsSource, fsSource) {
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
         let infoLog = gl.getProgramInfoLog(program);
         gl.deleteProgram(program);
-        throw new Error('CreateShader, linking:\n' + infoLog);
+        throw new Error('createShader, linking:\n' + infoLog);
     }
 
     return program;
@@ -277,10 +277,6 @@ function loadWaveAtPosition(gl, position) {
 }
 
 function $(id) { return document.getElementById(id); }
-
-function getText(id) {
-    return shadersDict[id];
-}
 
 function supportsWebGl() {
     // from https://github.com/Modernizr/Modernizr/blob/master/feature-detects/webgl.js
