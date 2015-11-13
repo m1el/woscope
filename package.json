@@ -1,0 +1,46 @@
+{
+  "name": "woscope",
+  "version": "0.1.0",
+  "description": "oscilloscope emulator",
+  "homepage": "https://m1el.github.io/woscope/",
+  "license": "MIT",
+  "main": "index.js",
+  "keywords": [
+    "oscilloscope",
+    "webgl"
+  ],
+  "author": "m1el",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/m1el/woscope.git"
+  },
+  "bugs": {
+    "url": "https://github.com/m1el/woscope/issues"
+  },
+  "scripts": {
+    "demo": "budo demo/:dist/demo.js --live --open",
+    "build": "jshint *.js demo/*.js && browserify demo/ > dist/demo.js && browserify index.js --standalone woscope -p [bannerify --file banner.txt] > dist/woscope.js"
+  },
+  "browserify": {
+    "transform": [
+      "glslify",
+      [
+        "babelify",
+        {
+          "presets": [
+            "es2015"
+          ]
+        }
+      ]
+    ]
+  },
+  "devDependencies": {
+    "babel-preset-es2015": "^6.1.2",
+    "babelify": "^7.2.0",
+    "bannerify": "^1.0.1",
+    "browserify": "^12.0.1",
+    "budo": "^6.0.1",
+    "glslify": "^2.3.1",
+    "jshint": "^2.8.0"
+  }
+}

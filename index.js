@@ -1,45 +1,31 @@
 'use strict';
 
-let libraryInfo = [
-    {
-        file: 'khrang.ogg',
-        author: 'Jerobeam Fenderson',
-        title: 'Khrậng',
-        link: 'https://www.youtube.com/watch?v=vAyCl4IHIz8',
-        swap: true,
-    },
-    {
-        file: 'oscillofun.ogg',
-        author: 'ATOM DELTA',
-        title: 'Oscillofun',
-        link: 'https://www.youtube.com/watch?v=o4YyI6_y6kw',
-        invert: true,
-    },
-    {
-        file: 'alpha_molecule.ogg',
-        author: 'Alexander Taylor',
-        title: 'The Alpha Molecule',
-        link: 'https://www.youtube.com/watch?v=XM8kYRS-cNk',
-        invert: true,
-    },
-];
+let glslify = require('glslify');
 
-let libraryDict = {};
-for (let e of libraryInfo) {
-    libraryDict[e.file] = e;
+let shadersDict = {
+    vsLine: glslify(__dirname + '/shaders/vsLine.glsl'),
+    fsLine: glslify(__dirname + '/shaders/fsLine.glsl'),
+    vsBlurTranspose: glslify(__dirname + '/shaders/vsBlurTranspose.glsl'),
+    fsBlurTranspose: glslify(__dirname + '/shaders/fsBlurTranspose.glsl'),
+    vsOutput: glslify(__dirname + '/shaders/vsOutput.glsl'),
+    fsOutput: glslify(__dirname + '/shaders/fsOutput.glsl'),
+    vsProgress: glslify(__dirname + '/shaders/vsProgress.glsl'),
+    fsProgress: glslify(__dirname + '/shaders/fsProgress.glsl'),
+};
+
+let audioCtx;
+try {
+    try {
+        audioCtx = new AudioContext();
+    } catch(e) {
+        audioCtx = new webkitAudioContext();
+    }
+} catch(e) {
+    throw new Error('Web Audio API is not supported in this browser');
 }
 
-let query = parseq(location.search);
-if (!query.file) {
-    query = libraryInfo[0];
-}
-
-let file = query.file;
-let audioUrl = './woscope-music/' + file;
-let swap = query.swap;
-let invert = query.invert;
-
-let audioCtx = new AudioContext();
+let swap = false;
+let invert = false;
 let audioData = null;
 let quadIndex = null;
 let vertexIndex = null;
@@ -61,21 +47,25 @@ function axhr(url, callback, progress) {
         audioCtx.decodeAudioData(request.response, function(buffer) {
             callback(buffer);
         });
-    }
+    };
     request.send();
 }
 
-window.onload = function() {
-    let canvas = $('c'),
+module.exports = woscope;
+function woscope(config) {
+    let canvas = config.canvas,
         gl = initGl(canvas),
-        htmlAudio = $('htmlAudio');
+        audio = config.audio,
+        audioUrl = config.audioUrl || audio.currentSrc || audio.src,
+        callback = config.callback || function () {};
 
-    updatePageInfo();
+    swap = config.swap;
+    invert = config.invert;
 
-    gl.lineShader = CreateShader(gl, getText('vsLine'), getText('fsLine'));
-    gl.blurShader = CreateShader(gl, getText('vsBlurTranspose'), getText('fsBlurTranspose'));
-    gl.outputShader = CreateShader(gl, getText('vsOutput'), getText('fsOutput'));
-    gl.progressShader = CreateShader(gl, getText('vsProgress'), getText('fsProgress'));
+    gl.lineShader = createShader(gl, shadersDict.vsLine, shadersDict.fsLine);
+    gl.blurShader = createShader(gl, shadersDict.vsBlurTranspose, shadersDict.fsBlurTranspose);
+    gl.outputShader = createShader(gl, shadersDict.vsOutput, shadersDict.fsOutput);
+    gl.progressShader = createShader(gl, shadersDict.vsProgress, shadersDict.fsProgress);
 
     quadIndex = makeQuadIndex(gl);
     vertexIndex = makeVertexIndex(gl);
@@ -90,7 +80,7 @@ window.onload = function() {
     }
 
     let loop = function() {
-        draw(gl);
+        draw(gl, canvas, audio);
         requestAnimationFrame(loop);
     };
 
@@ -100,19 +90,13 @@ window.onload = function() {
         if (progress >= 1) {
             return;
         }
-        drawProgress(gl, progress);
+        drawProgress(gl, canvas, progress);
         requestAnimationFrame(progressLoop);
     };
     progressLoop();
 
-    htmlAudio.volume = 0.5;
-    htmlAudio.src = audioUrl;
-
     axhr(audioUrl, function(buffer) {
-        htmlAudio.play();
-        htmlAudio.onload = function() {
-            htmlAudio.play();
-        };
+        callback();
 
         audioData = prepareAudioData(gl, buffer);
         loop();
@@ -121,75 +105,21 @@ window.onload = function() {
         progress = e.total ? e.loaded / e.total : 1.0;
         console.log('progress: ' + e.loaded + ' / ' + e.total);
     });
-};
-
-function parseq(search) {
-    search = search.replace(/^\?/, '');
-    let obj = {};
-    for (let pair of search.split('&')) {
-        pair = pair.split('=');
-        obj[decodeURIComponent(pair[0])] =
-            pair.length > 1 ? decodeURIComponent(pair[1]) : true;
-    }
-    return obj;
-}
-
-function dumpq(obj) {
-    return Object.keys(obj).map(function(key) {
-        if (obj[key] === true) {
-            return encodeURIComponent(key);
-        } else {
-            return encodeURIComponent(key) + '=' + encodeURIComponent(obj[key]);
-        }
-    }).join('&');
-}
-
-function updatePageInfo() {
-    if (file in libraryDict) {
-        let info = libraryDict[file],
-            text = document.createTextNode(info.author + ' — ' + info.title + ' '),
-            songInfo = $('songInfo'),
-            a = document.createElement('a'),
-            linkText = document.createTextNode('[link]');
-
-        a.appendChild(linkText);
-        a.href = info.link;
-        songInfo.innerHTML = '';
-        songInfo.appendChild(text);
-        songInfo.appendChild(a);
-    }
-
-    let ul = $('playList');
-    ul.innerHTML = '';
-    for (let song of libraryInfo) {
-        let a = document.createElement('a'),
-            li = document.createElement('li');
-        a.appendChild(document.createTextNode(song.title));
-
-        let q = {file: song.file};
-        if (song.swap) { q.swap = true; }
-        if (song.invert) { q.invert = true; }
-        a.href = '?' + dumpq(q);
-
-        li.appendChild(a);
-        ul.appendChild(li);
-    }
 }
 
 function initGl(canvas) {
     let gl = canvas.getContext('webgl');
     if (!gl) {
         $('nogl').style.display = 'block';
-        throw new Exception('no gl :C');
+        throw new Error('no gl :C');
     }
     gl.clearColor( 0.0, 0.0, 0.0, 1.0 );
     return gl;
 }
 
-function CreateShader(gl, vsSource, fsSource) {
-    if (typeof WebGLRenderingContext !== 'function' ||
-            !(gl instanceof WebGLRenderingContext)) {
-        throw new Error('CreateShader: no WebGL context');
+function createShader(gl, vsSource, fsSource) {
+    if (!supportsWebGl()) {
+        throw new Error('createShader: no WebGL context');
     }
 
     let vs = gl.createShader(gl.VERTEX_SHADER);
@@ -198,7 +128,7 @@ function CreateShader(gl, vsSource, fsSource) {
     if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) {
         let infoLog = gl.getShaderInfoLog(vs);
         gl.deleteShader(vs);
-        throw new Error('CreateShader, vertex shader compilation:\n' + infoLog);
+        throw new Error('createShader, vertex shader compilation:\n' + infoLog);
     }
 
     let fs = gl.createShader(gl.FRAGMENT_SHADER);
@@ -208,7 +138,7 @@ function CreateShader(gl, vsSource, fsSource) {
         let infoLog = gl.getShaderInfoLog(fs);
         gl.deleteShader(vs);
         gl.deleteShader(fs);
-        throw new Error('CreateShader, fragment shader compilation:\n' + infoLog);
+        throw new Error('createShader, fragment shader compilation:\n' + infoLog);
     }
 
     let program = gl.createProgram();
@@ -224,11 +154,11 @@ function CreateShader(gl, vsSource, fsSource) {
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
         let infoLog = gl.getProgramInfoLog(program);
         gl.deleteProgram(program);
-        throw new Error('CreateShader, linking:\n' + infoLog);
+        throw new Error('createShader, linking:\n' + infoLog);
     }
 
     return program;
-};
+}
 
 function makeQuadIndex(gl) {
     let index = new Int16Array(nSamples*2);
@@ -348,9 +278,14 @@ function loadWaveAtPosition(gl, position) {
 
 function $(id) { return document.getElementById(id); }
 
-function getText(id) {
-    let c = $(id);
-    return c && c.firstChild && c.firstChild.data;
+function supportsWebGl() {
+    // from https://github.com/Modernizr/Modernizr/blob/master/feature-detects/webgl.js
+    let canvas = document.createElement('canvas'),
+        supports = 'probablySupportsContext' in canvas ? 'probablySupportsContext' : 'supportsContext';
+    if (supports in canvas) {
+        return canvas[supports]('webgl') || canvas[supports]('experimental-webgl');
+    }
+    return 'WebGLRenderingContext' in window;
 }
 
 function activateTargetTexture(gl, texture) {
@@ -364,9 +299,9 @@ function activateTargetTexture(gl, texture) {
     gl.bindRenderbuffer(gl.RENDERBUFFER, null);
 }
 
-function drawProgress(gl, progress) {
-    let width = 800,
-        height = 800;
+function drawProgress(gl, canvas, progress) {
+    let width = canvas.width,
+        height = canvas.height;
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, width, height);
@@ -401,11 +336,11 @@ function drawProgress(gl, progress) {
     gl.useProgram(null);
 }
 
-function draw(gl) {
-    loadWaveAtPosition(gl, $('htmlAudio').currentTime);
+function draw(gl, canvas, audio) {
+    loadWaveAtPosition(gl, audio.currentTime);
 
-    let width = 800,
-        height = 800;
+    let width = canvas.width,
+        height = canvas.height;
 
     if (!doBloom) {
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
