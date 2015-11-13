@@ -8,7 +8,7 @@ Code is available under MIT license.
 
 ### Example
 ```html
-<audio id="myAudio" controls src="woscope-music/khrang.mp3"></audio><br>
+<audio id="myAudio" controls src="woscope-music/khrang.m4a"></audio><br>
 <canvas id="myCanvas" width="800" height="800"></canvas>
 <script src="dist/woscope.js"></script>
 <script>
