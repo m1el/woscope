@@ -27,6 +27,5 @@ Code is available under MIT license.
 ```sh
 npm install      # install dev dependencies
 npm run demo     # run demo locally with livereload
-npm run build    # build dist files
-npm run lint     # check source files with jshint
+npm run build    # lint and build dist files
 ```
