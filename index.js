@@ -439,9 +439,9 @@ function drawLine(gl, shader) {
 
     gl.disable(gl.BLEND);
 
-    for (let a of attribs) {
+    attribs.forEach(function(a) {
         gl.disableVertexAttribArray(a);
-    }
+    });
 
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
     gl.bindBuffer(gl.ARRAY_BUFFER, null);
@@ -492,9 +492,9 @@ function drawTexture(gl, texture, size, shader, alpha) {
     gl.blendFunc(gl.ONE, gl.SRC_ALPHA);
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
-    for (let a of attribs) {
+    attribs.forEach(function(a) {
         gl.disableVertexAttribArray(a);
-    }
+    });
 
     gl.bindBuffer(gl.ARRAY_BUFFER, null);
     gl.bindTexture(gl.TEXTURE_2D, null);
