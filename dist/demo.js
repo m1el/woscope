@@ -153,20 +153,6 @@ try {
     throw new Error('Web Audio API is not supported in this browser');
 }
 
-var swap = false;
-var invert = false;
-var audioData = null;
-var quadIndex = null;
-var vertexIndex = null;
-var nSamples = 4096;
-var scratchBuffer = new Float32Array(nSamples * 4);
-var doBloom = false;
-var frameBuffer = null;
-var lineTexture = null;
-var blurTexture = null;
-var blurTexture2 = null;
-var outQuadArray = null;
-
 function axhr(url, callback, progress) {
     var request = new XMLHttpRequest();
     request.open('GET', url, true);
@@ -188,38 +174,39 @@ function woscope(config) {
         audioUrl = config.audioUrl || audio.currentSrc || audio.src,
         callback = config.callback || function () {};
 
-    swap = config.swap;
-    invert = config.invert;
+    var ctx = {
+        gl: gl,
+        swap: config.swap,
+        invert: config.invert,
+        lineShader: createShader(gl, shadersDict.vsLine, shadersDict.fsLine),
+        blurShader: createShader(gl, shadersDict.vsBlurTranspose, shadersDict.fsBlurTranspose),
+        outputShader: createShader(gl, shadersDict.vsOutput, shadersDict.fsOutput),
+        progressShader: createShader(gl, shadersDict.vsProgress, shadersDict.fsProgress),
+        progress: 0,
+        loaded: false,
+        nSamples: 4096,
+        doBloom: false
+    };
 
-    gl.lineShader = createShader(gl, shadersDict.vsLine, shadersDict.fsLine);
-    gl.blurShader = createShader(gl, shadersDict.vsBlurTranspose, shadersDict.fsBlurTranspose);
-    gl.outputShader = createShader(gl, shadersDict.vsOutput, shadersDict.fsOutput);
-    gl.progressShader = createShader(gl, shadersDict.vsProgress, shadersDict.fsProgress);
+    Object.assign(ctx, {
+        quadIndex: makeQuadIndex(ctx),
+        vertexIndex: makeVertexIndex(ctx),
+        outQuadArray: makeOutQuad(ctx),
+        scratchBuffer: new Float32Array(ctx.nSamples * 4)
+    });
 
-    quadIndex = makeQuadIndex(gl);
-    vertexIndex = makeVertexIndex(gl);
-    outQuadArray = makeOutQuad(gl);
-
-    {
-        var tmp = makeFrameBuffer(gl, canvas.width, canvas.height);
-        frameBuffer = tmp.frameBuffer;
-        lineTexture = tmp.lineTexture;
-        blurTexture = tmp.blurTexture;
-        blurTexture2 = tmp.blurTexture2;
-    }
+    Object.assign(ctx, makeFrameBuffer(ctx, canvas.width, canvas.height));
 
     var loop = function loop() {
-        draw(gl, canvas, audio);
+        draw(ctx, canvas, audio);
         requestAnimationFrame(loop);
     };
 
-    var progress = 0;
-
     var progressLoop = function progressLoop() {
-        if (progress >= 1) {
+        if (ctx.loaded) {
             return;
         }
-        drawProgress(gl, canvas, progress);
+        drawProgress(ctx, canvas);
         requestAnimationFrame(progressLoop);
     };
     progressLoop();
@@ -227,10 +214,11 @@ function woscope(config) {
     axhr(audioUrl, function (buffer) {
         callback();
 
-        audioData = prepareAudioData(gl, buffer);
+        ctx.audioData = prepareAudioData(ctx, buffer);
+        ctx.loaded = true;
         loop();
     }, function (e) {
-        progress = e.total ? e.loaded / e.total : 1.0;
+        ctx.progress = e.total ? e.loaded / e.total : 1.0;
         console.log('progress: ' + e.loaded + ' / ' + e.total);
     });
 }
@@ -288,8 +276,9 @@ function createShader(gl, vsSource, fsSource) {
     return program;
 }
 
-function makeQuadIndex(gl) {
-    var index = new Int16Array(nSamples * 2);
+function makeQuadIndex(ctx) {
+    var gl = ctx.gl;
+    var index = new Int16Array(ctx.nSamples * 2);
     for (var i = index.length; i--;) {
         index[i] = i;
     }
@@ -301,8 +290,9 @@ function makeQuadIndex(gl) {
     return vbo;
 }
 
-function makeVertexIndex(gl) {
-    var len = (nSamples - 1) * 2 * 3,
+function makeVertexIndex(ctx) {
+    var gl = ctx.gl;
+    var len = (ctx.nSamples - 1) * 2 * 3,
         index = new Uint16Array(len);
     for (var i = 0, pos = 0; i < len;) {
         index[i++] = pos;
@@ -321,7 +311,8 @@ function makeVertexIndex(gl) {
     return vbo;
 }
 
-function makeOutQuad(gl) {
+function makeOutQuad(ctx) {
+    var gl = ctx.gl;
     var data = new Int16Array([-1, -1, 0, 0, -1, 1, 0, 1, 1, -1, 1, 0, 1, 1, 1, 1]);
     var vbo = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
@@ -345,56 +336,58 @@ function makeTargetTexture(gl, width, height) {
     return texture;
 }
 
-function makeFrameBuffer(gl, width, height) {
+function makeFrameBuffer(ctx, width, height) {
+    var gl = ctx.gl;
     var frameBuffer = gl.createFramebuffer();
     gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
     frameBuffer.width = 1024;
     frameBuffer.height = 1024;
 
-    gl.renderBuffer = gl.createRenderbuffer();
-
     return {
+        renderBuffer: gl.createRenderbuffer(),
         frameBuffer: frameBuffer,
         lineTexture: makeTargetTexture(gl, frameBuffer.width, frameBuffer.height),
         blurTexture: makeTargetTexture(gl, frameBuffer.width, frameBuffer.height),
-        blurTexture2: makeTargetTexture(gl, frameBuffer.width, frameBuffer.height)
+        blurTexture2: makeTargetTexture(gl, frameBuffer.width, frameBuffer.height),
+        vbo: gl.createBuffer()
     };
 }
 
-function prepareAudioData(gl, buffer) {
+function prepareAudioData(ctx, buffer) {
     var left = buffer.getChannelData(0),
         right = buffer.getChannelData(1);
 
-    if (swap) {
+    if (ctx.swap) {
         var tmp = left;
         left = right;
         right = tmp;
     }
 
-    var vbo = gl.createBuffer();
     return {
-        vbo: vbo,
         left: left,
         right: right,
         sampleRate: buffer.sampleRate
     };
 }
 
-function loadWaveAtPosition(gl, position) {
+function loadWaveAtPosition(ctx, position) {
+    var gl = ctx.gl;
     position = Math.max(0, position - 1 / 120);
-    position = Math.floor(position * audioData.sampleRate);
-    var end = Math.min(audioData.left.length, position + nSamples) - 1,
+    position = Math.floor(position * ctx.audioData.sampleRate);
+
+    var end = Math.min(ctx.audioData.left.length, position + ctx.nSamples) - 1,
         len = end - position;
-    var subArr = scratchBuffer,
-        left = audioData.left,
-        right = audioData.right;
+    var subArr = ctx.scratchBuffer,
+        left = ctx.audioData.left,
+        right = ctx.audioData.right;
     for (var i = 0; i < len; i++) {
         var t = i * 8,
             p = i + position;
         subArr[t] = subArr[t + 2] = subArr[t + 4] = subArr[t + 6] = left[p];
         subArr[t + 1] = subArr[t + 3] = subArr[t + 5] = subArr[t + 7] = right[p];
     }
-    gl.bindBuffer(gl.ARRAY_BUFFER, audioData.vbo);
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, ctx.vbo);
     gl.bufferData(gl.ARRAY_BUFFER, subArr, gl.STATIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER, null);
 }
@@ -413,45 +406,48 @@ function supportsWebGl() {
     return 'WebGLRenderingContext' in window;
 }
 
-function activateTargetTexture(gl, texture) {
-    gl.bindRenderbuffer(gl.RENDERBUFFER, gl.renderBuffer);
-    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, frameBuffer.width, frameBuffer.height);
+function activateTargetTexture(ctx, texture) {
+    var gl = ctx.gl;
+    gl.bindRenderbuffer(gl.RENDERBUFFER, ctx.renderBuffer);
+    gl.renderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT16, ctx.frameBuffer.width, ctx.frameBuffer.height);
 
     gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0);
-    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, gl.renderBuffer);
+    gl.framebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, ctx.renderBuffer);
 
     gl.bindTexture(gl.TEXTURE_2D, null);
     gl.bindRenderbuffer(gl.RENDERBUFFER, null);
 }
 
-function drawProgress(gl, canvas, progress) {
+function drawProgress(ctx, canvas) {
+    var progress = ctx.progress;
+    var gl = ctx.gl;
     var width = canvas.width,
         height = canvas.height;
 
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
     gl.viewport(0, 0, width, height);
     gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-    gl.useProgram(gl.progressShader);
+    gl.useProgram(ctx.progressShader);
 
     {
-        var tmpPos = gl.getUniformLocation(gl.progressShader, 'uProgress');
+        var tmpPos = gl.getUniformLocation(ctx.progressShader, 'uProgress');
         if (tmpPos && tmpPos !== -1) {
             gl.uniform1f(tmpPos, progress);
         }
     }
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, outQuadArray);
+    gl.bindBuffer(gl.ARRAY_BUFFER, ctx.outQuadArray);
 
     var attribs = [];
     {
-        var tmpAttr = gl.getAttribLocation(gl.progressShader, 'aPos');
+        var tmpAttr = gl.getAttribLocation(ctx.progressShader, 'aPos');
         if (tmpAttr > -1) {
             gl.enableVertexAttribArray(tmpAttr);
             gl.vertexAttribPointer(tmpAttr, 2, gl.SHORT, false, 8, 0);
             attribs.push(tmpAttr);
         }
 
-        tmpAttr = gl.getAttribLocation(gl.progressShader, 'aUV');
+        tmpAttr = gl.getAttribLocation(ctx.progressShader, 'aUV');
         if (tmpAttr > -1) {
             gl.enableVertexAttribArray(tmpAttr);
             gl.vertexAttribPointer(tmpAttr, 2, gl.SHORT, false, 8, 4);
@@ -469,62 +465,64 @@ function drawProgress(gl, canvas, progress) {
     gl.useProgram(null);
 }
 
-function draw(gl, canvas, audio) {
-    loadWaveAtPosition(gl, audio.currentTime);
+function draw(ctx, canvas, audio) {
+    var gl = ctx.gl;
+    loadWaveAtPosition(ctx, audio.currentTime);
 
     var width = canvas.width,
         height = canvas.height;
 
-    if (!doBloom) {
+    if (!ctx.doBloom) {
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.viewport(0, 0, width, height);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-        drawLine(gl, gl.lineShader);
+        drawLine(ctx, ctx.lineShader);
     } else {
 
-        gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
-        activateTargetTexture(gl, lineTexture);
+        gl.bindFramebuffer(gl.FRAMEBUFFER, ctx.frameBuffer);
+        activateTargetTexture(ctx, ctx.lineTexture);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.viewport(0, 0, width, height);
-        drawLine(gl, gl.lineShader);
+        drawLine(ctx, ctx.lineShader);
 
         {
             // generate mipmap
-            gl.bindTexture(gl.TEXTURE_2D, lineTexture);
+            gl.bindTexture(gl.TEXTURE_2D, ctx.lineTexture);
             gl.generateMipmap(gl.TEXTURE_2D);
             gl.bindTexture(gl.TEXTURE_2D, null);
         }
 
         // downscale
-        activateTargetTexture(gl, blurTexture2);
+        activateTargetTexture(ctx, ctx.blurTexture2);
         gl.viewport(0, 0, width / 2, height / 2);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-        drawTexture(gl, lineTexture, width, gl.outputShader);
+        drawTexture(ctx, ctx.lineTexture, width, ctx.outputShader);
 
         // blur x
-        activateTargetTexture(gl, blurTexture);
+        activateTargetTexture(ctx, ctx.blurTexture);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-        drawTexture(gl, blurTexture2, width / 2, gl.blurShader);
+        drawTexture(ctx, ctx.blurTexture2, width / 2, ctx.blurShader);
 
         // blur y
-        activateTargetTexture(gl, blurTexture2);
+        activateTargetTexture(ctx, ctx.blurTexture2);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-        drawTexture(gl, blurTexture, width / 2, gl.blurShader);
+        drawTexture(ctx, ctx.blurTexture, width / 2, ctx.blurShader);
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.viewport(0, 0, width, height);
-        drawTexture(gl, lineTexture, width, gl.outputShader);
-        drawTexture(gl, blurTexture2, width / 2, gl.outputShader, 0.5);
+        drawTexture(ctx, ctx.lineTexture, width, ctx.outputShader);
+        drawTexture(ctx, ctx.blurTexture2, width / 2, ctx.outputShader, 0.5);
     }
 }
 
-function drawLine(gl, shader) {
+function drawLine(ctx, shader) {
+    var gl = ctx.gl;
     gl.useProgram(shader);
     {
         var tmpPos = gl.getUniformLocation(shader, 'uInvert');
         if (tmpPos && tmpPos !== -1) {
-            gl.uniform1f(tmpPos, invert ? -1 : 1);
+            gl.uniform1f(tmpPos, ctx.invert ? -1 : 1);
         }
         tmpPos = gl.getUniformLocation(shader, 'uSize');
         if (tmpPos && tmpPos !== -1) {
@@ -539,7 +537,7 @@ function drawLine(gl, shader) {
     var attribs = [];
 
     {
-        gl.bindBuffer(gl.ARRAY_BUFFER, quadIndex);
+        gl.bindBuffer(gl.ARRAY_BUFFER, ctx.quadIndex);
         var idxAttr = gl.getAttribLocation(shader, 'aIdx');
         if (idxAttr > -1) {
             gl.enableVertexAttribArray(idxAttr);
@@ -549,7 +547,7 @@ function drawLine(gl, shader) {
     }
 
     {
-        gl.bindBuffer(gl.ARRAY_BUFFER, audioData.vbo);
+        gl.bindBuffer(gl.ARRAY_BUFFER, ctx.vbo);
         var tmpPos = gl.getAttribLocation(shader, 'aStart');
         if (tmpPos > -1) {
             gl.enableVertexAttribArray(tmpPos);
@@ -568,8 +566,8 @@ function drawLine(gl, shader) {
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
 
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, vertexIndex);
-    gl.drawElements(gl.TRIANGLES, (nSamples - 1) * 2, gl.UNSIGNED_SHORT, 0);
+    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ctx.vertexIndex);
+    gl.drawElements(gl.TRIANGLES, (ctx.nSamples - 1) * 2, gl.UNSIGNED_SHORT, 0);
 
     gl.disable(gl.BLEND);
 
@@ -582,12 +580,13 @@ function drawLine(gl, shader) {
     gl.useProgram(null);
 }
 
-function drawTexture(gl, texture, size, shader, alpha) {
+function drawTexture(ctx, texture, size, shader, alpha) {
+    var gl = ctx.gl;
     alpha = alpha || 1;
     gl.useProgram(shader);
 
     var attribs = [];
-    gl.bindBuffer(gl.ARRAY_BUFFER, outQuadArray);
+    gl.bindBuffer(gl.ARRAY_BUFFER, ctx.outQuadArray);
 
     {
         var tmpPos = gl.getAttribLocation(shader, 'aPos');
