@@ -138,8 +138,8 @@ var shadersDict = {
     fsBlurTranspose: "#define GLSLIFY 1\nprecision highp float;\nuniform sampler2D uTexture;\nuniform float uSize;\nvarying vec2 vTexCoord;\nvoid main (void) {\n    float point = uSize/1024.0/1024.0*2.0;\n    vec4 color = texture2D(uTexture, vTexCoord);\n    float sum = 0.0;\n    sum += texture2D(uTexture, vec2(vTexCoord.x - point*4.0, vTexCoord.y)).g * (1.0/25.0);\n    sum += texture2D(uTexture, vec2(vTexCoord.x - point*3.0, vTexCoord.y)).g * (2.0/25.0);\n    sum += texture2D(uTexture, vec2(vTexCoord.x - point*2.0, vTexCoord.y)).g * (3.0/25.0);\n    sum += texture2D(uTexture, vec2(vTexCoord.x - point*1.0, vTexCoord.y)).g * (4.0/25.0);\n    sum += texture2D(uTexture, vec2(vTexCoord.x            , vTexCoord.y)).g * (5.0/25.0);\n    sum += texture2D(uTexture, vec2(vTexCoord.x + point*1.0, vTexCoord.y)).g * (4.0/25.0);\n    sum += texture2D(uTexture, vec2(vTexCoord.x + point*2.0, vTexCoord.y)).g * (3.0/25.0);\n    sum += texture2D(uTexture, vec2(vTexCoord.x + point*3.0, vTexCoord.y)).g * (2.0/25.0);\n    sum += texture2D(uTexture, vec2(vTexCoord.x + point*4.0, vTexCoord.y)).g * (1.0/25.0);\n    gl_FragColor = vec4(0.0, sum, 0.0, 1.0);\n}\n",
     vsOutput: "#define GLSLIFY 1\nprecision highp float;\nuniform float uSize;\nattribute vec2 aPos, aST;\nvarying vec2 vTexCoord;\nvoid main (void) {\n    gl_Position = vec4(aPos, 1, 1);\n    vTexCoord = aST*uSize/1024.0;\n}\n",
     fsOutput: "#define GLSLIFY 1\nprecision highp float;\nuniform sampler2D uTexture;\nuniform float uAlpha;\nvarying vec2 vTexCoord;\nvoid main (void) {\n    vec4 color = texture2D(uTexture, vTexCoord);\n    color.a = uAlpha;\n    gl_FragColor = color;\n}\n",
-    vsProgress: "#define GLSLIFY 1\nprecision highp float;\nattribute vec2 aPos;\nvoid main (void) {\n    gl_Position = vec4(aPos, 1, 1);\n}\n",
-    fsProgress: "#define GLSLIFY 1\nprecision highp float;\nuniform float uProgress;\nfloat rect(vec2 p, vec2 s) {\n    return max(abs(p.x)-s.x,abs(p.y)-s.y);\n}\nvoid main (void) {\n    float p = clamp(uProgress, 0.0, 1.0);\n    float hw = 300.0;\n    vec2 size = vec2(800.0, 800.0);\n    vec2 c = size / 2.0;\n    vec2 uv = gl_FragCoord.xy-c;\n    float result = min(rect(uv,vec2(hw+5.,25.)),-rect(uv,vec2(hw+10.,30.)));\n    result = max(result,-rect(uv-vec2(hw*(p-1.0),0.0),vec2(hw*p, 20.0)));\n    gl_FragColor = vec4(vec3(0.1, 1.0, 0.1) * clamp(result, 0.0, 1.0), 1.0);\n}\n"
+    vsProgress: "#define GLSLIFY 1\nprecision highp float;\nattribute vec2 aPos;\nattribute vec2 aUV;\nvarying vec2 vUV;\nvoid main (void) {\n    gl_Position = vec4(aPos, 1, 1);\n    vUV = aUV;\n}\n",
+    fsProgress: "#define GLSLIFY 1\nprecision highp float;\nuniform float uProgress;\nvarying vec2 vUV;\nfloat rect(vec2 p, vec2 s) {\n    return max(abs(p.x)-s.x,abs(p.y)-s.y);\n}\nvoid main (void) {\n    float p = clamp(uProgress, 0.0, 1.0);\n    float hw = 300.0;\n    vec2 size = vec2(800.0, 800.0);\n    vec2 c = size / 2.0;\n    vec2 uv = vUV*size - c;\n    float result = min(rect(uv,vec2(hw+5.,25.)),-rect(uv,vec2(hw+10.,30.)));\n    result = max(result,-rect(uv-vec2(hw*(p-1.0),0.0),vec2(hw*p, 20.0)));\n    gl_FragColor = vec4(vec3(0.1, 1.0, 0.1) * clamp(result, 0.0, 1.0), 1.0);\n}\n"
 };
 
 var audioCtx = undefined;
@@ -442,20 +442,28 @@ function drawProgress(gl, canvas, progress) {
 
     gl.bindBuffer(gl.ARRAY_BUFFER, outQuadArray);
 
-    var posAttr = -1;
+    var attribs = [];
     {
-        posAttr = gl.getAttribLocation(gl.progressShader, 'aPos');
-        if (posAttr > -1) {
-            gl.enableVertexAttribArray(posAttr);
-            gl.vertexAttribPointer(posAttr, 2, gl.SHORT, false, 8, 0);
+        var tmpAttr = gl.getAttribLocation(gl.progressShader, 'aPos');
+        if (tmpAttr > -1) {
+            gl.enableVertexAttribArray(tmpAttr);
+            gl.vertexAttribPointer(tmpAttr, 2, gl.SHORT, false, 8, 0);
+            attribs.push(tmpAttr);
+        }
+
+        tmpAttr = gl.getAttribLocation(gl.progressShader, 'aUV');
+        if (tmpAttr > -1) {
+            gl.enableVertexAttribArray(tmpAttr);
+            gl.vertexAttribPointer(tmpAttr, 2, gl.SHORT, false, 8, 4);
+            attribs.push(tmpAttr);
         }
     }
 
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 
-    if (posAttr > -1) {
-        gl.disableVertexAttribArray(posAttr);
-    }
+    attribs.forEach(function (a) {
+        gl.disableVertexAttribArray(a);
+    });
 
     gl.bindBuffer(gl.ARRAY_BUFFER, null);
     gl.useProgram(null);
