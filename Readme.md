@@ -18,7 +18,7 @@ Code is available under MIT license.
     woscope({
         canvas: myCanvas,
         audio: myAudio,
-        callback: function () { htmlAudio.play(); }
+        callback: function () { myAudio.play(); }
     });
 </script>
 ```
