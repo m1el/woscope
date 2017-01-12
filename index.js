@@ -14,15 +14,6 @@ let shadersDict = {
 };
 
 let audioCtx;
-try {
-    try {
-        audioCtx = new AudioContext();
-    } catch(e) {
-        audioCtx = new webkitAudioContext();
-    }
-} catch(e) {
-    throw new Error('Web Audio API is not supported in this browser');
-}
 
 function axhr(url, callback, progress) {
     let request = new XMLHttpRequest();
@@ -39,6 +30,8 @@ function axhr(url, callback, progress) {
 
 module.exports = woscope;
 function woscope(config) {
+    audioCtx = audioCtx || initAudioCtx(config.error);
+
     let canvas = config.canvas,
         gl = initGl(canvas, config.error),
         audio = config.audio,
@@ -93,6 +86,19 @@ function woscope(config) {
         ctx.progress = e.total ? e.loaded / e.total : 1.0;
         console.log('progress: ' + e.loaded + ' / ' + e.total);
     });
+}
+
+function initAudioCtx(errorCallback) {
+    try {
+        let AudioCtx = window.AudioContext || window.webkitAudioContext;
+        return new AudioCtx();
+    } catch(e) {
+        let message = 'Web Audio API is not supported in this browser';
+        if (errorCallback) {
+            errorCallback(message);
+        }
+        throw new Error(message);
+    }
 }
 
 function initGl(canvas, errorCallback) {
