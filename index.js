@@ -96,7 +96,7 @@ function woscope(config) {
 }
 
 function initGl(canvas) {
-    let gl = canvas.getContext('webgl');
+    let gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
     if (!gl) {
         $('nogl').style.display = 'block';
         throw new Error('no gl :C');
