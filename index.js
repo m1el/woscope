@@ -40,7 +40,7 @@ function axhr(url, callback, progress) {
 module.exports = woscope;
 function woscope(config) {
     let canvas = config.canvas,
-        gl = initGl(canvas),
+        gl = initGl(canvas, config.error),
         audio = config.audio,
         audioUrl = config.audioUrl || audio.currentSrc || audio.src,
         callback = config.callback || function () {};
@@ -95,11 +95,14 @@ function woscope(config) {
     });
 }
 
-function initGl(canvas) {
+function initGl(canvas, errorCallback) {
     let gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
     if (!gl) {
-        $('nogl').style.display = 'block';
-        throw new Error('no gl :C');
+        let message = 'WebGL is not supported in this browser :(';
+        if (errorCallback) {
+            errorCallback(message);
+        }
+        throw new Error(message);
     }
     gl.clearColor( 0.0, 0.0, 0.0, 1.0 );
     return gl;
@@ -269,8 +272,6 @@ function loadWaveAtPosition(ctx, position) {
     gl.bufferData(gl.ARRAY_BUFFER, subArr, gl.STATIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER, null);
 }
-
-function $(id) { return document.getElementById(id); }
 
 function supportsWebGl() {
     // from https://github.com/Modernizr/Modernizr/blob/master/feature-detects/webgl.js

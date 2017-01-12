@@ -43,7 +43,8 @@ let file = query.file;
 
 window.onload = function() {
     let canvas = $('c'),
-        htmlAudio = $('htmlAudio');
+        htmlAudio = $('htmlAudio'),
+        htmlError = $('htmlError');
 
     updatePageInfo();
 
@@ -57,6 +58,7 @@ window.onload = function() {
       canvas: canvas,
       audio: htmlAudio,
       callback: function () { htmlAudio.play(); },
+      error: function (msg) { htmlError.innerHTML = msg; },
       swap: query.swap,
       invert: query.invert
     });
