@@ -11,11 +11,12 @@ canvas { display: block; margin: auto; }
 audio { width: 100%; }
 h2 { text-align: center; margin: 5px; }
 ul { text-align: center; font-size: 20px; margin: 5px; padding: 0;}
-li { display: inline; margin: 0 10px 0 10px; }
+li { display: inline-block; margin: 0 10px 0 10px; }
 a { color: #2d2; }
 noscript, .error { position: absolute; width: 100%; top: 200px;
 text-align: center; font-size: 32px; }
 footer { text-align: center; font-size: 18px; }
+.options { font-size: 18px; }
     </style>
     <script src="dist/demo.js"> </script>
 </head>
@@ -26,6 +27,7 @@ footer { text-align: center; font-size: 18px; }
 <audio controls id="htmlAudio"></audio><br>
 <h2 id="songInfo">song info goes here</h2>
 <ul id="playList"></ul>
+<ul id="options" class="options"></ul>
 <footer><a href="https://github.com/m1el/woscope">woscope</a> by m1el</footer>
 </body>
 </html>

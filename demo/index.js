@@ -54,7 +54,7 @@ window.onload = function() {
 
     window.onresize();
 
-    woscope({
+    let myWoscope = woscope({
       canvas: canvas,
       audio: htmlAudio,
       callback: function () { htmlAudio.play(); },
@@ -63,6 +63,15 @@ window.onload = function() {
       invert: query.invert,
       bloom: query.bloom,
     });
+
+    setupOptionsUI(
+        function (options) { Object.assign(myWoscope, options); },
+        {
+            swap: 'swap channels',
+            invert: 'invert coordinates',
+            bloom: 'add glow',
+        }
+    );
 };
 
 window.onresize = function () {
@@ -125,4 +134,25 @@ function updatePageInfo() {
         li.appendChild(a);
         ul.appendChild(li);
     });
+}
+
+function setupOptionsUI(updater, options) {
+    let ul = $('options');
+    ul.innerHTML = '';
+    Object.keys(options).forEach(function (param) {
+        let li = document.createElement('li');
+        li.innerHTML = `<label title="${options[param]}"><input type="checkbox" id="${param}"> ${param}</label>`;
+        let input = li.firstChild.firstChild;
+
+        input.checked = query[param];
+        input.onchange = toggle;
+
+        ul.appendChild(li);
+    });
+
+    function toggle(e) {
+        let result = {};
+        result[e.target.id] = e.target.checked;
+        updater(result);
+    }
 }
