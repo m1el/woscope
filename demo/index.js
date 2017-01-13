@@ -60,7 +60,8 @@ window.onload = function() {
       callback: function () { htmlAudio.play(); },
       error: function (msg) { htmlError.innerHTML = msg; },
       swap: query.swap,
-      invert: query.invert
+      invert: query.invert,
+      bloom: query.bloom,
     });
 };
 

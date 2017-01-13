@@ -54,7 +54,7 @@ function woscope(config) {
         progress: 0,
         loaded: false,
         nSamples: 4096,
-        doBloom: false,
+        bloom: config.bloom,
     };
 
     Object.assign(ctx, {
@@ -362,7 +362,7 @@ function draw(ctx, canvas, audio) {
     let width = canvas.width,
         height = canvas.height;
 
-    if (!ctx.doBloom) {
+    if (!ctx.bloom) {
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.viewport(0, 0, width, height);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
