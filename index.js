@@ -255,12 +255,6 @@ function prepareAudioData(ctx, buffer) {
     let left = buffer.getChannelData(0),
         right = buffer.getChannelData(1);
 
-    if (ctx.swap) {
-        let tmp = left;
-        left = right;
-        right = tmp;
-    }
-
     return {
         left: left,
         right: right,
@@ -269,23 +263,32 @@ function prepareAudioData(ctx, buffer) {
 }
 
 function loadWaveAtPosition(ctx, position) {
-    let gl = ctx.gl;
     position = Math.max(0, position - 1/120);
     position = Math.floor(position*ctx.audioData.sampleRate);
 
     let end = Math.min(ctx.audioData.left.length, position+ctx.nSamples) - 1,
         len = end - position;
-    let subArr = ctx.scratchBuffer,
-        left = ctx.audioData.left,
-        right = ctx.audioData.right;
+    let left = ctx.audioData.left.subarray(position, end),
+        right = ctx.audioData.right.subarray(position, end);
+
+    if (ctx.swap) {
+        loadChannelsInto(ctx, len, ctx.vbo, right, left);
+    } else {
+        loadChannelsInto(ctx, len, ctx.vbo, left, right);
+    }
+}
+
+function loadChannelsInto(ctx, len, vbo, xAxis, yAxis) {
+    let gl = ctx.gl,
+        subArr = ctx.scratchBuffer;
+
     for (let i = 0; i < len; i++) {
-        let t = i*8,
-            p = i+position;
-        subArr[t]   = subArr[t+2] = subArr[t+4] = subArr[t+6] = left[p];
-        subArr[t+1] = subArr[t+3] = subArr[t+5] = subArr[t+7] = right[p];
+        let t = i*8;
+        subArr[t]   = subArr[t+2] = subArr[t+4] = subArr[t+6] = xAxis[i];
+        subArr[t+1] = subArr[t+3] = subArr[t+5] = subArr[t+7] = yAxis[i];
     }
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, ctx.vbo);
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
     gl.bufferData(gl.ARRAY_BUFFER, subArr, gl.STATIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER, null);
 }
