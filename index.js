@@ -253,12 +253,13 @@ function makeFrameBuffer(ctx, width, height) {
 
 function prepareAudioData(ctx, buffer) {
     let left = buffer.getChannelData(0),
-        right = buffer.getChannelData(1);
+        right = (buffer.numberOfChannels > 1) ? buffer.getChannelData(1) : left;
 
     return {
         left: left,
         right: right,
         sampleRate: buffer.sampleRate,
+        sourceChannels: buffer.numberOfChannels,
     };
 }
 
