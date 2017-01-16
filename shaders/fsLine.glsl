@@ -5,7 +5,7 @@ precision highp float;
 #define SQRT2 1.4142135623730951
 uniform float uSize;
 uniform float uIntensity;
-precision highp float;
+uniform vec4 uColor;
 varying vec4 uvl;
 float gaussian(float x, float sigma) {
     return exp(-(x * x) / (2.0 * sigma * sigma)) / (TAUR * sigma);
@@ -34,5 +34,5 @@ void main (void)
     }
     float afterglow = smoothstep(0.0, 0.33, uvl.w/2048.0);
     alpha *= afterglow * uIntensity;
-    gl_FragColor = vec4(1./32., 1.0, 1./32., alpha);
+    gl_FragColor = vec4(vec3(uColor), uColor.a * alpha);
 }

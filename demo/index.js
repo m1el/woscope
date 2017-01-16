@@ -59,6 +59,7 @@ window.onload = function() {
       audio: htmlAudio,
       callback: function () { htmlAudio.play(); },
       error: function (msg) { htmlError.innerHTML = msg; },
+      color: [1/32, 1, 1/32, 1],
       background: [0, 0, 0, 1],
       swap: query.swap,
       invert: query.invert,

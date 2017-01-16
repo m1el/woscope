@@ -13,7 +13,8 @@ let shadersDict = {
     fsProgress: glslify(__dirname + '/shaders/fsProgress.glsl'),
 };
 
-let defaultBackground = [0, 0, 0, 1];
+let defaultColor = [1/32, 1, 1/32, 1],
+    defaultBackground = [0, 0, 0, 1];
 
 let audioCtx;
 
@@ -49,6 +50,7 @@ function woscope(config) {
         gl: gl,
         swap: config.swap,
         invert: config.invert,
+        color: config.color,
         lineShader: createShader(gl, shadersDict.vsLine, shadersDict.fsLine),
         blurShader: createShader(gl, shadersDict.vsBlurTranspose, shadersDict.fsBlurTranspose),
         outputShader: createShader(gl, shadersDict.vsOutput, shadersDict.fsOutput),
@@ -326,6 +328,10 @@ function drawProgress(ctx, canvas) {
         if (tmpPos && tmpPos !== -1) {
             gl.uniform1f(tmpPos, progress);
         }
+        tmpPos = gl.getUniformLocation(ctx.progressShader, 'uColor');
+        if (tmpPos && tmpPos !== -1) {
+            gl.uniform4fv(tmpPos, ctx.color || defaultColor);
+        }
     }
 
     gl.bindBuffer(gl.ARRAY_BUFFER, ctx.outQuadArray);
@@ -422,6 +428,10 @@ function drawLine(ctx, shader) {
         tmpPos = gl.getUniformLocation(shader, 'uIntensity');
         if (tmpPos && tmpPos !== -1) {
             gl.uniform1f(tmpPos, 1);
+        }
+        tmpPos = gl.getUniformLocation(shader, 'uColor');
+        if (tmpPos && tmpPos !== -1) {
+            gl.uniform4fv(tmpPos, ctx.color || defaultColor);
         }
     }
 
