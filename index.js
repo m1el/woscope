@@ -50,7 +50,9 @@ function woscope(config) {
         gl: gl,
         swap: config.swap,
         invert: config.invert,
+        sweep: config.sweep,
         color: config.color,
+        color2: config.color2,
         lineShader: createShader(gl, shadersDict.vsLine, shadersDict.fsLine),
         blurShader: createShader(gl, shadersDict.vsBlurTranspose, shadersDict.fsBlurTranspose),
         outputShader: createShader(gl, shadersDict.vsOutput, shadersDict.fsOutput),
@@ -66,6 +68,7 @@ function woscope(config) {
         vertexIndex: makeVertexIndex(ctx),
         outQuadArray: makeOutQuad(ctx),
         scratchBuffer: new Float32Array(ctx.nSamples*4),
+        audioRamp: makeRamp(Math.ceil(ctx.nSamples / 3)),
     });
 
     Object.assign(ctx, makeFrameBuffer(ctx, canvas.width, canvas.height));
@@ -248,6 +251,7 @@ function makeFrameBuffer(ctx, width, height) {
         blurTexture: makeTargetTexture(gl, frameBuffer.width, frameBuffer.height),
         blurTexture2: makeTargetTexture(gl, frameBuffer.width, frameBuffer.height),
         vbo: gl.createBuffer(),
+        vbo2: gl.createBuffer(),
     };
 }
 
@@ -263,6 +267,16 @@ function prepareAudioData(ctx, buffer) {
     };
 }
 
+function makeRamp(len) {
+    // returns array of "len" length, values linearly increase from -1 to 1
+    let arr = new Float32Array(len),
+        dx = 2 / (len - 1);
+    for (let i = 0; i < len; i++) {
+        arr[i] = (i * dx) - 1;
+    }
+    return arr;
+}
+
 function loadWaveAtPosition(ctx, position) {
     position = Math.max(0, position - 1/120);
     position = Math.floor(position*ctx.audioData.sampleRate);
@@ -272,7 +286,13 @@ function loadWaveAtPosition(ctx, position) {
     let left = ctx.audioData.left.subarray(position, end),
         right = ctx.audioData.right.subarray(position, end);
 
-    if (ctx.swap) {
+    if (ctx.sweep && ctx.swap) {
+        loadChannelsInto(ctx, len, ctx.vbo, ctx.audioRamp, right);
+        loadChannelsInto(ctx, len, ctx.vbo2, ctx.audioRamp, left);
+    } else if (ctx.sweep) {
+        loadChannelsInto(ctx, len, ctx.vbo, ctx.audioRamp, left);
+        loadChannelsInto(ctx, len, ctx.vbo2, ctx.audioRamp, right);
+    } else if (ctx.swap) {
         loadChannelsInto(ctx, len, ctx.vbo, right, left);
     } else {
         loadChannelsInto(ctx, len, ctx.vbo, left, right);
@@ -379,6 +399,9 @@ function draw(ctx, canvas, audio) {
         gl.viewport(0, 0, width, height);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         drawLine(ctx, ctx.lineShader, ctx.vbo, ctx.color);
+        if (ctx.sweep) {
+            drawLine(ctx, ctx.lineShader, ctx.vbo2, ctx.color2);
+        }
     } else {
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, ctx.frameBuffer);
@@ -386,6 +409,9 @@ function draw(ctx, canvas, audio) {
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.viewport(0, 0, width, height);
         drawLine(ctx, ctx.lineShader, ctx.vbo, ctx.color);
+        if (ctx.sweep) {
+            drawLine(ctx, ctx.lineShader, ctx.vbo2, ctx.color2);
+        }
 
         { // generate mipmap
             gl.bindTexture(gl.TEXTURE_2D, ctx.lineTexture);

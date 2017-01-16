@@ -60,9 +60,11 @@ window.onload = function() {
       callback: function () { htmlAudio.play(); },
       error: function (msg) { htmlError.innerHTML = msg; },
       color: [1/32, 1, 1/32, 1],
+      color2: [1, 0, 1, 1],
       background: [0, 0, 0, 1],
       swap: query.swap,
       invert: query.invert,
+      sweep: query.sweep,
       bloom: query.bloom,
     });
 
@@ -71,6 +73,7 @@ window.onload = function() {
         {
             swap: 'swap channels',
             invert: 'invert coordinates',
+            sweep: 'traditional oscilloscope display',
             bloom: 'add glow',
         }
     );
