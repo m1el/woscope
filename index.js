@@ -49,6 +49,7 @@ function woscope(config) {
     let ctx = {
         gl: gl,
         destroy: destroy,
+        live: config.live,
         swap: config.swap,
         invert: config.invert,
         sweep: config.sweep,
@@ -89,6 +90,13 @@ function woscope(config) {
         draw(ctx, canvas, audio);
         requestAnimationFrame(loop);
     };
+
+    if (ctx.live) {
+        ctx.analysers = initAnalysers(ctx, audio);
+        callback(ctx);
+        loop();
+        return ctx;
+    }
 
     let progressLoop = function() {
         if (ctx.loaded) {
@@ -138,6 +146,32 @@ function initGl(canvas, background, errorCallback) {
     }
     gl.clearColor.apply(gl, background || defaultBackground);
     return gl;
+}
+
+function initAnalysers(ctx, audio) {
+    let sourceNode = audioCtx.createMediaElementSource(audio);
+
+    ctx.audioData = {
+        sourceChannels: sourceNode.channelCount,
+    };
+
+    // Split the combined channels
+    let channelSplitter = audioCtx.createChannelSplitter(2);
+    sourceNode.connect(channelSplitter);
+
+    let analysers = [0, 1].map(function (val, index) {
+        let analyser = audioCtx.createAnalyser();
+        channelSplitter.connect(analyser, index);
+        return analyser;
+    });
+
+    let channelMerger = audioCtx.createChannelMerger(2);
+    analysers.forEach(function(analyser, index) {
+        analyser.connect(channelMerger, 0, index);
+    });
+
+    channelMerger.connect(audioCtx.destination);
+    return analysers;
 }
 
 function createShader(gl, vsSource, fsSource) {
@@ -298,6 +332,23 @@ function loadWaveAtPosition(ctx, position) {
     let left = ctx.audioData.left.subarray(position, end),
         right = ctx.audioData.right.subarray(position, end);
 
+    channelRouter(ctx, len, left, right);
+}
+
+function loadWaveLive(ctx) {
+    let analyser0 = ctx.analysers[0],
+        analyser1 = ctx.analysers[1];
+    let len = analyser0.fftSize,
+        left = new Float32Array(analyser0.fftSize),
+        right = new Float32Array(analyser1.fftSize);
+
+    analyser0.getFloatTimeDomainData(left);
+    analyser1.getFloatTimeDomainData(right);
+
+    channelRouter(ctx, len, left, right);
+}
+
+function channelRouter(ctx, len, left, right) {
     if (ctx.sweep && ctx.swap) {
         loadChannelsInto(ctx, len, ctx.vbo, ctx.audioRamp, right);
         loadChannelsInto(ctx, len, ctx.vbo2, ctx.audioRamp, left);
@@ -401,7 +452,11 @@ function drawProgress(ctx, canvas) {
 
 function draw(ctx, canvas, audio) {
     let gl = ctx.gl;
-    loadWaveAtPosition(ctx, audio.currentTime);
+    if (ctx.live) {
+        loadWaveLive(ctx);
+    } else {
+        loadWaveAtPosition(ctx, audio.currentTime);
+    }
 
     let width = canvas.width,
         height = canvas.height;
