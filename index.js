@@ -48,6 +48,7 @@ function woscope(config) {
 
     let ctx = {
         gl: gl,
+        destroy: destroy,
         swap: config.swap,
         invert: config.invert,
         sweep: config.sweep,
@@ -72,6 +73,17 @@ function woscope(config) {
     });
 
     Object.assign(ctx, makeFrameBuffer(ctx, canvas.width, canvas.height));
+
+    function destroy() {
+        // release GPU in Chrome
+        gl.getExtension('WEBGL_lose_context').loseContext();
+        // end loops, empty context object
+        loop = emptyContext;
+        progressLoop = emptyContext;
+        function emptyContext() {
+            Object.keys(ctx).forEach(function (val) { delete ctx[val]; });
+        }
+    }
 
     let loop = function() {
         draw(ctx, canvas, audio);
