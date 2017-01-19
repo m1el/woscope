@@ -50,7 +50,6 @@ window.onload = function() {
 
     htmlAudio.src = './woscope-music/' + (htmlAudio.canPlayType('audio/ogg') ? file : libraryDict[file].mpeg);
     htmlAudio.load();
-    htmlAudio.volume = 0.5;
 
     window.onresize();
 
@@ -66,6 +65,7 @@ window.onload = function() {
       invert: query.invert,
       sweep: query.sweep,
       bloom: query.bloom,
+      live: query.live,
     });
 
     setupOptionsUI(
@@ -75,6 +75,10 @@ window.onload = function() {
             invert: 'invert coordinates',
             sweep: 'traditional oscilloscope display',
             bloom: 'add glow',
+            live: 'analyze audio in real time\n\n' +
+                '- no display while paused/scrubbing\n' +
+                '- volume affects the display size\n' +
+                '- does not work in Mobile Safari',
         }
     );
 };
@@ -131,14 +135,19 @@ function updatePageInfo() {
             li = document.createElement('li');
         a.appendChild(document.createTextNode(song.title));
 
-        let q = {file: song.file};
-        if (song.swap) { q.swap = true; }
-        if (song.invert) { q.invert = true; }
-        a.href = '?' + dumpq(q);
+        a.href = '?' + dumpq(makeQuery(song));
 
         li.appendChild(a);
         ul.appendChild(li);
     });
+}
+
+function makeQuery(song) {
+    let q = {file: song.file};
+    if (song.swap) { q.swap = true; }
+    if (song.invert) { q.invert = true; }
+    if (query.live) { q.live = true; }
+    return q;
 }
 
 function setupOptionsUI(updater, options) {
@@ -150,7 +159,7 @@ function setupOptionsUI(updater, options) {
         let input = li.firstChild.firstChild;
 
         input.checked = query[param];
-        input.onchange = toggle;
+        input.onchange = (param === 'live') ? toggleParam : toggle;
 
         ul.appendChild(li);
     });
@@ -159,5 +168,17 @@ function setupOptionsUI(updater, options) {
         let result = {};
         result[e.target.id] = e.target.checked;
         updater(result);
+    }
+    function toggleParam(e) {
+        let q = parseq(location.search);
+        if (!q.file) {
+            q = makeQuery(libraryInfo[0]);
+        }
+        if (e.target.checked) {
+            q[e.target.id] = true;
+        } else {
+            delete q[e.target.id];
+        }
+        location.href = '?' + dumpq(q);
     }
 }
