@@ -378,14 +378,14 @@ function draw(ctx, canvas, audio) {
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.viewport(0, 0, width, height);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-        drawLine(ctx, ctx.lineShader);
+        drawLine(ctx, ctx.lineShader, ctx.vbo, ctx.color);
     } else {
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, ctx.frameBuffer);
         activateTargetTexture(ctx, ctx.lineTexture);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.viewport(0, 0, width, height);
-        drawLine(ctx, ctx.lineShader);
+        drawLine(ctx, ctx.lineShader, ctx.vbo, ctx.color);
 
         { // generate mipmap
             gl.bindTexture(gl.TEXTURE_2D, ctx.lineTexture);
@@ -417,7 +417,7 @@ function draw(ctx, canvas, audio) {
     }
 }
 
-function drawLine(ctx, shader) {
+function drawLine(ctx, shader, vbo, color) {
     let gl = ctx.gl;
     gl.useProgram(shader);
     {
@@ -435,7 +435,7 @@ function drawLine(ctx, shader) {
         }
         tmpPos = gl.getUniformLocation(shader, 'uColor');
         if (tmpPos && tmpPos !== -1) {
-            gl.uniform4fv(tmpPos, ctx.color || defaultColor);
+            gl.uniform4fv(tmpPos, color || defaultColor);
         }
     }
 
@@ -452,7 +452,7 @@ function drawLine(ctx, shader) {
     }
 
     {
-        gl.bindBuffer(gl.ARRAY_BUFFER, ctx.vbo);
+        gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
         let tmpPos = gl.getAttribLocation(shader, 'aStart');
         if (tmpPos > -1) {
             gl.enableVertexAttribArray(tmpPos);
