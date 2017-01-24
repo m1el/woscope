@@ -15,14 +15,19 @@ let shadersDict = {
 
 let audioCtx;
 
-function axhr(url, callback, progress) {
+function axhr(url, callback, errorCallback, progress) {
     let request = new XMLHttpRequest();
     request.open('GET', url, true);
     request.responseType = 'arraybuffer';
     request.onprogress = progress;
     request.onload = function() {
+        if (request.status >= 400) {
+            return errorCallback(`Error loading audio file - ${request.status} ${request.statusText}`);
+        }
         audioCtx.decodeAudioData(request.response, function(buffer) {
             callback(buffer);
+        }, function (e) {
+            errorCallback('Unable to decode audio data');
         });
     };
     request.send();
@@ -82,7 +87,9 @@ function woscope(config) {
         ctx.loaded = true;
         loop();
 
-    }, function(e) {
+    },
+    config.error,
+    function (e) {
         ctx.progress = e.total ? e.loaded / e.total : 1.0;
         console.log('progress: ' + e.loaded + ' / ' + e.total);
     });
