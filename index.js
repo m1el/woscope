@@ -81,18 +81,18 @@ function woscope(config) {
     progressLoop();
 
     axhr(audioUrl, function(buffer) {
-        callback();
-
         ctx.audioData = prepareAudioData(ctx, buffer);
         ctx.loaded = true;
+        callback(ctx);
         loop();
-
     },
     config.error,
     function (e) {
         ctx.progress = e.total ? e.loaded / e.total : 1.0;
         console.log('progress: ' + e.loaded + ' / ' + e.total);
     });
+
+    return ctx;
 }
 
 function initAudioCtx(errorCallback) {
