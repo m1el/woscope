@@ -13,6 +13,8 @@ let shadersDict = {
     fsProgress: glslify(__dirname + '/shaders/fsProgress.glsl'),
 };
 
+let defaultBackground = [0, 0, 0, 1];
+
 let audioCtx;
 
 function axhr(url, callback, errorCallback, progress) {
@@ -38,7 +40,7 @@ function woscope(config) {
     audioCtx = audioCtx || initAudioCtx(config.error);
 
     let canvas = config.canvas,
-        gl = initGl(canvas, config.error),
+        gl = initGl(canvas, config.background, config.error),
         audio = config.audio,
         audioUrl = config.audioUrl || audio.currentSrc || audio.src,
         callback = config.callback || function () {};
@@ -108,7 +110,7 @@ function initAudioCtx(errorCallback) {
     }
 }
 
-function initGl(canvas, errorCallback) {
+function initGl(canvas, background, errorCallback) {
     let gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
     if (!gl) {
         let message = 'WebGL is not supported in this browser :(';
@@ -117,7 +119,7 @@ function initGl(canvas, errorCallback) {
         }
         throw new Error(message);
     }
-    gl.clearColor( 0.0, 0.0, 0.0, 1.0 );
+    gl.clearColor.apply(gl, background || defaultBackground);
     return gl;
 }
 
