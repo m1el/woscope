@@ -44,12 +44,13 @@ function woscope(config) {
         gl = initGl(canvas, config.background, config.error),
         audio = config.audio,
         audioUrl = config.audioUrl || audio.currentSrc || audio.src,
+        live = (config.live === true) ? getLiveType() : config.live,
         callback = config.callback || function () {};
 
     let ctx = {
         gl: gl,
         destroy: destroy,
-        live: config.live,
+        live: live,
         swap: config.swap,
         invert: config.invert,
         sweep: config.sweep,
@@ -92,7 +93,11 @@ function woscope(config) {
     };
 
     if (ctx.live) {
-        ctx.analysers = initAnalysers(ctx, audio);
+        if (ctx.live === 'scriptProcessor') {
+            ctx.scriptNode = initScriptNode(ctx, audio, audioCtx);
+        } else {
+            ctx.analysers = initAnalysers(ctx, audio);
+        }
         callback(ctx);
         loop();
         return ctx;
@@ -120,6 +125,14 @@ function woscope(config) {
     });
 
     return ctx;
+}
+
+function supportsAnalyserFloat() {
+    return typeof audioCtx.createAnalyser().getFloatTimeDomainData === 'function';
+}
+
+function getLiveType() {
+    return supportsAnalyserFloat() ? 'analyser' : 'scriptProcessor';
 }
 
 function initAudioCtx(errorCallback) {
@@ -172,6 +185,50 @@ function initAnalysers(ctx, audio) {
 
     channelMerger.connect(audioCtx.destination);
     return analysers;
+}
+
+function initScriptNode(ctx, audio, audioCtx) {
+    let sourceNode = audioCtx.createMediaElementSource(audio);
+
+    let samples = 1024;
+    let scriptNode = audioCtx.createScriptProcessor(samples, 2, 2);
+    sourceNode.connect(scriptNode);
+
+    let audioData = [
+        new Float32Array(ctx.nSamples),
+        new Float32Array(ctx.nSamples),
+    ];
+    ctx.audioData = {
+        left: audioData[0],
+        right: audioData[1],
+        sampleRate: audioCtx.sampleRate,
+        sourceChannels: sourceNode.channelCount,
+    };
+
+    function processAudio(e) {
+        let inputBuffer = e.inputBuffer,
+            outputBuffer = e.outputBuffer;
+
+        for (let i=0; i < inputBuffer.numberOfChannels; i++) {
+            let inputData = inputBuffer.getChannelData(i),
+                outputData = outputBuffer.getChannelData(i);
+
+            // send unprocessed audio to output
+            outputData.set(inputData);
+
+            // append to audioData arrays
+            let channel = audioData[i];
+            // shift forward by x samples
+            channel.set(channel.subarray(inputBuffer.length));
+            // add new samples at end
+            channel.set(inputData, channel.length - inputBuffer.length);
+        }
+    }
+
+    scriptNode.onaudioprocess = processAudio;
+
+    scriptNode.connect(audioCtx.destination);
+    return scriptNode;
 }
 
 function createShader(gl, vsSource, fsSource) {
@@ -453,7 +510,11 @@ function drawProgress(ctx, canvas) {
 function draw(ctx, canvas, audio) {
     let gl = ctx.gl;
     if (ctx.live) {
-        loadWaveLive(ctx);
+        if (ctx.live === 'scriptProcessor') {
+            loadWaveAtPosition(ctx, 0);
+        } else {
+            loadWaveLive(ctx);
+        }
     } else {
         loadWaveAtPosition(ctx, audio.currentTime);
     }
