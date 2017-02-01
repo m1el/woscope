@@ -10,6 +10,9 @@
     "webgl"
   ],
   "author": "m1el",
+  "contributors": [
+    "cvn"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/m1el/woscope.git"

@@ -10,7 +10,8 @@
     "webgl"
   ],
   "authors": [
-    "m1el"
+    "m1el",
+    "cvn"
   ],
   "ignore": [
     "**/.*"
