@@ -174,7 +174,8 @@ function initAnalysers(ctx, audio) {
 
     let analysers = [0, 1].map(function (val, index) {
         let analyser = audioCtx.createAnalyser();
-        channelSplitter.connect(analyser, index);
+        analyser.fftSize = 2048;
+        channelSplitter.connect(analyser, index, 0);
         return analyser;
     });
 
