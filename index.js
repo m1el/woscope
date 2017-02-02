@@ -13,25 +13,24 @@ let shadersDict = {
     fsProgress: glslify(__dirname + '/shaders/fsProgress.glsl'),
 };
 
-let audioCtx;
-try {
-    try {
-        audioCtx = new AudioContext();
-    } catch(e) {
-        audioCtx = new webkitAudioContext();
-    }
-} catch(e) {
-    throw new Error('Web Audio API is not supported in this browser');
-}
+let defaultColor = [1/32, 1, 1/32, 1],
+    defaultBackground = [0, 0, 0, 1];
 
-function axhr(url, callback, progress) {
+let audioCtx;
+
+function axhr(url, callback, errorCallback, progress) {
     let request = new XMLHttpRequest();
     request.open('GET', url, true);
     request.responseType = 'arraybuffer';
     request.onprogress = progress;
     request.onload = function() {
+        if (request.status >= 400) {
+            return errorCallback(`Error loading audio file - ${request.status} ${request.statusText}`);
+        }
         audioCtx.decodeAudioData(request.response, function(buffer) {
             callback(buffer);
+        }, function (e) {
+            errorCallback('Unable to decode audio data');
         });
     };
     request.send();
@@ -39,16 +38,24 @@ function axhr(url, callback, progress) {
 
 module.exports = woscope;
 function woscope(config) {
+    audioCtx = audioCtx || initAudioCtx(config.error);
+
     let canvas = config.canvas,
-        gl = initGl(canvas),
+        gl = initGl(canvas, config.background, config.error),
         audio = config.audio,
         audioUrl = config.audioUrl || audio.currentSrc || audio.src,
+        live = (config.live === true) ? getLiveType() : config.live,
         callback = config.callback || function () {};
 
     let ctx = {
         gl: gl,
+        destroy: destroy,
+        live: live,
         swap: config.swap,
         invert: config.invert,
+        sweep: config.sweep,
+        color: config.color,
+        color2: config.color2,
         lineShader: createShader(gl, shadersDict.vsLine, shadersDict.fsLine),
         blurShader: createShader(gl, shadersDict.vsBlurTranspose, shadersDict.fsBlurTranspose),
         outputShader: createShader(gl, shadersDict.vsOutput, shadersDict.fsOutput),
@@ -56,7 +63,7 @@ function woscope(config) {
         progress: 0,
         loaded: false,
         nSamples: 4096,
-        doBloom: false,
+        bloom: config.bloom,
     };
 
     Object.assign(ctx, {
@@ -64,14 +71,37 @@ function woscope(config) {
         vertexIndex: makeVertexIndex(ctx),
         outQuadArray: makeOutQuad(ctx),
         scratchBuffer: new Float32Array(ctx.nSamples*4),
+        audioRamp: makeRamp(Math.ceil(ctx.nSamples / 3)),
     });
 
     Object.assign(ctx, makeFrameBuffer(ctx, canvas.width, canvas.height));
+
+    function destroy() {
+        // release GPU in Chrome
+        gl.getExtension('WEBGL_lose_context').loseContext();
+        // end loops, empty context object
+        loop = emptyContext;
+        progressLoop = emptyContext;
+        function emptyContext() {
+            Object.keys(ctx).forEach(function (val) { delete ctx[val]; });
+        }
+    }
 
     let loop = function() {
         draw(ctx, canvas, audio);
         requestAnimationFrame(loop);
     };
+
+    if (ctx.live) {
+        if (ctx.live === 'scriptProcessor') {
+            ctx.scriptNode = initScriptNode(ctx, audio, audioCtx);
+        } else {
+            ctx.analysers = initAnalysers(ctx, audio);
+        }
+        callback(ctx);
+        loop();
+        return ctx;
+    }
 
     let progressLoop = function() {
         if (ctx.loaded) {
@@ -83,26 +113,139 @@ function woscope(config) {
     progressLoop();
 
     axhr(audioUrl, function(buffer) {
-        callback();
-
         ctx.audioData = prepareAudioData(ctx, buffer);
         ctx.loaded = true;
+        callback(ctx);
         loop();
-
-    }, function(e) {
+    },
+    config.error,
+    function (e) {
         ctx.progress = e.total ? e.loaded / e.total : 1.0;
         console.log('progress: ' + e.loaded + ' / ' + e.total);
     });
+
+    return ctx;
 }
 
-function initGl(canvas) {
-    let gl = canvas.getContext('webgl');
-    if (!gl) {
-        $('nogl').style.display = 'block';
-        throw new Error('no gl :C');
+function supportsAnalyserFloat() {
+    return typeof audioCtx.createAnalyser().getFloatTimeDomainData === 'function';
+}
+
+function getLiveType() {
+    return supportsAnalyserFloat() ? 'analyser' : 'scriptProcessor';
+}
+
+function initAudioCtx(errorCallback) {
+    try {
+        let AudioCtx = window.AudioContext || window.webkitAudioContext;
+        return new AudioCtx();
+    } catch(e) {
+        let message = 'Web Audio API is not supported in this browser';
+        if (errorCallback) {
+            errorCallback(message);
+        }
+        throw new Error(message);
     }
-    gl.clearColor( 0.0, 0.0, 0.0, 1.0 );
+}
+
+function initGl(canvas, background, errorCallback) {
+    let gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+    if (!gl) {
+        let message = 'WebGL is not supported in this browser :(';
+        if (errorCallback) {
+            errorCallback(message);
+        }
+        throw new Error(message);
+    }
+    gl.clearColor.apply(gl, background || defaultBackground);
     return gl;
+}
+
+function initAnalysers(ctx, audio) {
+    let sourceNode = audioCtx.createMediaElementSource(audio);
+
+    ctx.audioData = {
+        sourceChannels: sourceNode.channelCount,
+    };
+
+    // Split the combined channels
+    let channelSplitter = audioCtx.createChannelSplitter(2);
+    sourceNode.connect(gainWorkaround(channelSplitter, audio));
+
+    let analysers = [0, 1].map(function (val, index) {
+        let analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 2048;
+        channelSplitter.connect(analyser, index, 0);
+        return analyser;
+    });
+
+    let channelMerger = audioCtx.createChannelMerger(2);
+    analysers.forEach(function(analyser, index) {
+        analyser.connect(channelMerger, 0, index);
+    });
+
+    channelMerger.connect(audioCtx.destination);
+    return analysers;
+}
+
+function initScriptNode(ctx, audio, audioCtx) {
+    let sourceNode = audioCtx.createMediaElementSource(audio);
+
+    let samples = 1024;
+    let scriptNode = audioCtx.createScriptProcessor(samples, 2, 2);
+    sourceNode.connect(gainWorkaround(scriptNode, audio));
+
+    let audioData = [
+        new Float32Array(ctx.nSamples),
+        new Float32Array(ctx.nSamples),
+    ];
+    ctx.audioData = {
+        left: audioData[0],
+        right: audioData[1],
+        sampleRate: audioCtx.sampleRate,
+        sourceChannels: sourceNode.channelCount,
+    };
+
+    function processAudio(e) {
+        let inputBuffer = e.inputBuffer,
+            outputBuffer = e.outputBuffer;
+
+        for (let i=0; i < inputBuffer.numberOfChannels; i++) {
+            let inputData = inputBuffer.getChannelData(i),
+                outputData = outputBuffer.getChannelData(i);
+
+            // send unprocessed audio to output
+            outputData.set(inputData);
+
+            // append to audioData arrays
+            let channel = audioData[i];
+            // shift forward by x samples
+            channel.set(channel.subarray(inputBuffer.length));
+            // add new samples at end
+            channel.set(inputData, channel.length - inputBuffer.length);
+        }
+    }
+
+    scriptNode.onaudioprocess = processAudio;
+
+    scriptNode.connect(audioCtx.destination);
+    return scriptNode;
+}
+
+function gainWorkaround(node, audio) {
+    // Safari: createMediaElementSource causes output to ignore volume slider,
+    // so match gain to slider as a workaround
+    let gainNode;
+    if (audioCtx.constructor.name === 'webkitAudioContext') {
+        gainNode = audioCtx.createGain();
+        audio.onvolumechange = function () {
+            gainNode.gain.value = (audio.muted) ? 0 : audio.volume;
+        };
+        gainNode.connect(node);
+        return gainNode;
+    } else {
+        return node;
+    }
 }
 
 function createShader(gl, vsSource, fsSource) {
@@ -228,49 +371,85 @@ function makeFrameBuffer(ctx, width, height) {
         blurTexture: makeTargetTexture(gl, frameBuffer.width, frameBuffer.height),
         blurTexture2: makeTargetTexture(gl, frameBuffer.width, frameBuffer.height),
         vbo: gl.createBuffer(),
+        vbo2: gl.createBuffer(),
     };
 }
 
 function prepareAudioData(ctx, buffer) {
     let left = buffer.getChannelData(0),
-        right = buffer.getChannelData(1);
-
-    if (ctx.swap) {
-        let tmp = left;
-        left = right;
-        right = tmp;
-    }
+        right = (buffer.numberOfChannels > 1) ? buffer.getChannelData(1) : left;
 
     return {
         left: left,
         right: right,
         sampleRate: buffer.sampleRate,
+        sourceChannels: buffer.numberOfChannels,
     };
 }
 
+function makeRamp(len) {
+    // returns array of "len" length, values linearly increase from -1 to 1
+    let arr = new Float32Array(len),
+        dx = 2 / (len - 1);
+    for (let i = 0; i < len; i++) {
+        arr[i] = (i * dx) - 1;
+    }
+    return arr;
+}
+
 function loadWaveAtPosition(ctx, position) {
-    let gl = ctx.gl;
     position = Math.max(0, position - 1/120);
     position = Math.floor(position*ctx.audioData.sampleRate);
 
     let end = Math.min(ctx.audioData.left.length, position+ctx.nSamples) - 1,
         len = end - position;
-    let subArr = ctx.scratchBuffer,
-        left = ctx.audioData.left,
-        right = ctx.audioData.right;
+    let left = ctx.audioData.left.subarray(position, end),
+        right = ctx.audioData.right.subarray(position, end);
+
+    channelRouter(ctx, len, left, right);
+}
+
+function loadWaveLive(ctx) {
+    let analyser0 = ctx.analysers[0],
+        analyser1 = ctx.analysers[1];
+    let len = analyser0.fftSize,
+        left = new Float32Array(analyser0.fftSize),
+        right = new Float32Array(analyser1.fftSize);
+
+    analyser0.getFloatTimeDomainData(left);
+    analyser1.getFloatTimeDomainData(right);
+
+    channelRouter(ctx, len, left, right);
+}
+
+function channelRouter(ctx, len, left, right) {
+    if (ctx.sweep && ctx.swap) {
+        loadChannelsInto(ctx, len, ctx.vbo, ctx.audioRamp, right);
+        loadChannelsInto(ctx, len, ctx.vbo2, ctx.audioRamp, left);
+    } else if (ctx.sweep) {
+        loadChannelsInto(ctx, len, ctx.vbo, ctx.audioRamp, left);
+        loadChannelsInto(ctx, len, ctx.vbo2, ctx.audioRamp, right);
+    } else if (ctx.swap) {
+        loadChannelsInto(ctx, len, ctx.vbo, right, left);
+    } else {
+        loadChannelsInto(ctx, len, ctx.vbo, left, right);
+    }
+}
+
+function loadChannelsInto(ctx, len, vbo, xAxis, yAxis) {
+    let gl = ctx.gl,
+        subArr = ctx.scratchBuffer;
+
     for (let i = 0; i < len; i++) {
-        let t = i*8,
-            p = i+position;
-        subArr[t]   = subArr[t+2] = subArr[t+4] = subArr[t+6] = left[p];
-        subArr[t+1] = subArr[t+3] = subArr[t+5] = subArr[t+7] = right[p];
+        let t = i*8;
+        subArr[t]   = subArr[t+2] = subArr[t+4] = subArr[t+6] = xAxis[i];
+        subArr[t+1] = subArr[t+3] = subArr[t+5] = subArr[t+7] = yAxis[i];
     }
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, ctx.vbo);
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
     gl.bufferData(gl.ARRAY_BUFFER, subArr, gl.STATIC_DRAW);
     gl.bindBuffer(gl.ARRAY_BUFFER, null);
 }
-
-function $(id) { return document.getElementById(id); }
 
 function supportsWebGl() {
     // from https://github.com/Modernizr/Modernizr/blob/master/feature-detects/webgl.js
@@ -310,6 +489,10 @@ function drawProgress(ctx, canvas) {
         if (tmpPos && tmpPos !== -1) {
             gl.uniform1f(tmpPos, progress);
         }
+        tmpPos = gl.getUniformLocation(ctx.progressShader, 'uColor');
+        if (tmpPos && tmpPos !== -1) {
+            gl.uniform4fv(tmpPos, ctx.color || defaultColor);
+        }
     }
 
     gl.bindBuffer(gl.ARRAY_BUFFER, ctx.outQuadArray);
@@ -343,23 +526,37 @@ function drawProgress(ctx, canvas) {
 
 function draw(ctx, canvas, audio) {
     let gl = ctx.gl;
-    loadWaveAtPosition(ctx, audio.currentTime);
+    if (ctx.live) {
+        if (ctx.live === 'scriptProcessor') {
+            loadWaveAtPosition(ctx, 0);
+        } else {
+            loadWaveLive(ctx);
+        }
+    } else {
+        loadWaveAtPosition(ctx, audio.currentTime);
+    }
 
     let width = canvas.width,
         height = canvas.height;
 
-    if (!ctx.doBloom) {
+    if (!ctx.bloom) {
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.viewport(0, 0, width, height);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-        drawLine(ctx, ctx.lineShader);
+        drawLine(ctx, ctx.lineShader, ctx.vbo, ctx.color);
+        if (ctx.sweep) {
+            drawLine(ctx, ctx.lineShader, ctx.vbo2, ctx.color2);
+        }
     } else {
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, ctx.frameBuffer);
         activateTargetTexture(ctx, ctx.lineTexture);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.viewport(0, 0, width, height);
-        drawLine(ctx, ctx.lineShader);
+        drawLine(ctx, ctx.lineShader, ctx.vbo, ctx.color);
+        if (ctx.sweep) {
+            drawLine(ctx, ctx.lineShader, ctx.vbo2, ctx.color2);
+        }
 
         { // generate mipmap
             gl.bindTexture(gl.TEXTURE_2D, ctx.lineTexture);
@@ -391,7 +588,7 @@ function draw(ctx, canvas, audio) {
     }
 }
 
-function drawLine(ctx, shader) {
+function drawLine(ctx, shader, vbo, color) {
     let gl = ctx.gl;
     gl.useProgram(shader);
     {
@@ -406,6 +603,10 @@ function drawLine(ctx, shader) {
         tmpPos = gl.getUniformLocation(shader, 'uIntensity');
         if (tmpPos && tmpPos !== -1) {
             gl.uniform1f(tmpPos, 1);
+        }
+        tmpPos = gl.getUniformLocation(shader, 'uColor');
+        if (tmpPos && tmpPos !== -1) {
+            gl.uniform4fv(tmpPos, color || defaultColor);
         }
     }
 
@@ -422,7 +623,7 @@ function drawLine(ctx, shader) {
     }
 
     {
-        gl.bindBuffer(gl.ARRAY_BUFFER, ctx.vbo);
+        gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
         let tmpPos = gl.getAttribLocation(shader, 'aStart');
         if (tmpPos > -1) {
             gl.enableVertexAttribArray(tmpPos);

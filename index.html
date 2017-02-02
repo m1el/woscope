@@ -6,27 +6,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
 html { background: black; color: #ddd; }
-body { max-width: 800px; margin: 0 auto 100px; }
+body { position: relative; max-width: 800px; margin: 0 auto 100px; }
 canvas { display: block; margin: auto; }
 audio { width: 100%; }
 h2 { text-align: center; margin: 5px; }
 ul { text-align: center; font-size: 20px; margin: 5px; padding: 0;}
-li { display: inline; margin: 0 10px 0 10px; }
+li { display: inline-block; margin: 0 10px 0 10px; }
 a { color: #2d2; }
-.nogl { display: none; }
-noscript, .nogl { position: absolute; width: 800px; padding-top: 200px;
+noscript, .error { position: absolute; width: 100%; top: 200px;
 text-align: center; font-size: 32px; }
 footer { text-align: center; font-size: 18px; }
+.options { font-size: 18px; }
     </style>
     <script src="dist/demo.js"> </script>
 </head>
 <body>
 <noscript>Did you expect this thing to work without js enabled?</noscript>
-<div id="nogl" class="nogl">It seem you don't have a WebGL-capable web browser :(</div>
+<div id="htmlError" class="error"></div>
 <canvas id="c" width=800 height=800></canvas><br>
 <audio controls id="htmlAudio"></audio><br>
 <h2 id="songInfo">song info goes here</h2>
 <ul id="playList"></ul>
+<ul id="options" class="options"></ul>
 <footer><a href="https://github.com/m1el/woscope">woscope</a> by m1el</footer>
 </body>
 </html>
