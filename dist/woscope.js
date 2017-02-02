@@ -1,6 +1,6 @@
 /**
  * @name    woscope
- * @version 0.1.0 | November 18th 2015
+ * @version 0.2.0 | February 1st 2017
  * @author  m1el
  * @license MIT
  */
@@ -8,35 +8,34 @@
 'use strict';
 
 var shadersDict = {
-    vsLine: "#define GLSLIFY 1\nprecision highp float;\n#define EPS 1E-6\nuniform float uInvert;\nuniform float uSize;\nattribute vec2 aStart, aEnd;\nattribute float aIdx;\nvarying vec4 uvl;\nvarying float vLen;\nvoid main () {\n    float tang;\n    vec2 current;\n    // All points in quad contain the same data:\n    // segment start point and segment end point.\n    // We determine point position from it's index.\n    float idx = mod(aIdx,4.0);\n    if (idx >= 2.0) {\n        current = aEnd;\n        tang = 1.0;\n    } else {\n        current = aStart;\n        tang = -1.0;\n    }\n    float side = (mod(idx, 2.0)-0.5)*2.0;\n    uvl.xy = vec2(tang, side);\n    uvl.w = floor(aIdx / 4.0 + 0.5);\n\n    vec2 dir = aEnd-aStart;\n    uvl.z = length(dir);\n    if (uvl.z > EPS) {\n        dir = dir / uvl.z;\n    } else {\n    // If the segment is too short draw a square;\n        dir = vec2(1.0, 0.0);\n    }\n    vec2 norm = vec2(-dir.y, dir.x);\n    gl_Position = vec4((current+(tang*dir+norm*side)*uSize)*uInvert,0.0,1.0);\n    //gl_PointSize = 20.0;\n}\n",
-    fsLine: "#define GLSLIFY 1\nprecision highp float;\n#define EPS 1E-6\n#define TAU 6.283185307179586\n#define TAUR 2.5066282746310002\n#define SQRT2 1.4142135623730951\nuniform float uSize;\nuniform float uIntensity;\nprecision highp float;\nvarying vec4 uvl;\nfloat gaussian(float x, float sigma) {\n    return exp(-(x * x) / (2.0 * sigma * sigma)) / (TAUR * sigma);\n}\n\nfloat erf(float x) {\n    float s = sign(x), a = abs(x);\n    x = 1.0 + (0.278393 + (0.230389 + (0.000972 + 0.078108 * a) * a) * a) * a;\n    x *= x;\n    return s - s / (x * x);\n}\nvoid main (void)\n{\n    float len = uvl.z;\n    vec2 xy = vec2((len/2.0+uSize)*uvl.x+len/2.0, uSize*uvl.y);\n    float alpha;\n\n    float sigma = uSize/4.0;\n    if (len < EPS) {\n    // If the beam segment is too short, just calculate intensity at the position.\n        alpha = exp(-pow(length(xy),2.0)/(2.0*sigma*sigma))/2.0/sqrt(uSize);\n    } else {\n    // Otherwise, use analytical integral for accumulated intensity.\n        alpha = erf((len-xy.x)/SQRT2/sigma) + erf(xy.x/SQRT2/sigma);\n        alpha *= exp(-xy.y*xy.y/(2.0*sigma*sigma))/2.0/len*uSize;\n    }\n    float afterglow = smoothstep(0.0, 0.33, uvl.w/2048.0);\n    alpha *= afterglow * uIntensity;\n    gl_FragColor = vec4(1./32., 1.0, 1./32., alpha);\n}\n",
-    vsBlurTranspose: "#define GLSLIFY 1\nprecision highp float;\nuniform float uSize;\nattribute vec2 aPos, aST;\nvarying vec2 vTexCoord;\nvoid main (void) {\n    gl_Position = vec4(aPos.y, aPos.x, 1, 1);\n    vTexCoord = aST*uSize/1024.0;\n}\n",
-    fsBlurTranspose: "#define GLSLIFY 1\nprecision highp float;\nuniform sampler2D uTexture;\nuniform float uSize;\nvarying vec2 vTexCoord;\nvoid main (void) {\n    float point = uSize/1024.0/1024.0*2.0;\n    vec4 color = texture2D(uTexture, vTexCoord);\n    float sum = 0.0;\n    sum += texture2D(uTexture, vec2(vTexCoord.x - point*4.0, vTexCoord.y)).g * (1.0/25.0);\n    sum += texture2D(uTexture, vec2(vTexCoord.x - point*3.0, vTexCoord.y)).g * (2.0/25.0);\n    sum += texture2D(uTexture, vec2(vTexCoord.x - point*2.0, vTexCoord.y)).g * (3.0/25.0);\n    sum += texture2D(uTexture, vec2(vTexCoord.x - point*1.0, vTexCoord.y)).g * (4.0/25.0);\n    sum += texture2D(uTexture, vec2(vTexCoord.x            , vTexCoord.y)).g * (5.0/25.0);\n    sum += texture2D(uTexture, vec2(vTexCoord.x + point*1.0, vTexCoord.y)).g * (4.0/25.0);\n    sum += texture2D(uTexture, vec2(vTexCoord.x + point*2.0, vTexCoord.y)).g * (3.0/25.0);\n    sum += texture2D(uTexture, vec2(vTexCoord.x + point*3.0, vTexCoord.y)).g * (2.0/25.0);\n    sum += texture2D(uTexture, vec2(vTexCoord.x + point*4.0, vTexCoord.y)).g * (1.0/25.0);\n    gl_FragColor = vec4(0.0, sum, 0.0, 1.0);\n}\n",
-    vsOutput: "#define GLSLIFY 1\nprecision highp float;\nuniform float uSize;\nattribute vec2 aPos, aST;\nvarying vec2 vTexCoord;\nvoid main (void) {\n    gl_Position = vec4(aPos, 1, 1);\n    vTexCoord = aST*uSize/1024.0;\n}\n",
-    fsOutput: "#define GLSLIFY 1\nprecision highp float;\nuniform sampler2D uTexture;\nuniform float uAlpha;\nvarying vec2 vTexCoord;\nvoid main (void) {\n    vec4 color = texture2D(uTexture, vTexCoord);\n    color.a = uAlpha;\n    gl_FragColor = color;\n}\n",
-    vsProgress: "#define GLSLIFY 1\nprecision highp float;\nattribute vec2 aPos;\nattribute vec2 aUV;\nvarying vec2 vUV;\nvoid main (void) {\n    gl_Position = vec4(aPos, 1, 1);\n    vUV = aUV;\n}\n",
-    fsProgress: "#define GLSLIFY 1\nprecision highp float;\nuniform float uProgress;\nvarying vec2 vUV;\nfloat rect(vec2 p, vec2 s) {\n    return max(abs(p.x)-s.x,abs(p.y)-s.y);\n}\nvoid main (void) {\n    float p = clamp(uProgress, 0.0, 1.0);\n    float hw = 300.0;\n    vec2 size = vec2(800.0, 800.0);\n    vec2 c = size / 2.0;\n    vec2 uv = vUV*size - c;\n    float result = min(rect(uv,vec2(hw+5.,25.)),-rect(uv,vec2(hw+10.,30.)));\n    result = max(result,-rect(uv-vec2(hw*(p-1.0),0.0),vec2(hw*p, 20.0)));\n    gl_FragColor = vec4(vec3(0.1, 1.0, 0.1) * clamp(result, 0.0, 1.0), 1.0);\n}\n"
+    vsLine: "precision highp float;\n#define GLSLIFY 1\n#define EPS 1E-6\nuniform float uInvert;\nuniform float uSize;\nattribute vec2 aStart, aEnd;\nattribute float aIdx;\nvarying vec4 uvl;\nvarying float vLen;\nvoid main () {\n    float tang;\n    vec2 current;\n    // All points in quad contain the same data:\n    // segment start point and segment end point.\n    // We determine point position from it's index.\n    float idx = mod(aIdx,4.0);\n    if (idx >= 2.0) {\n        current = aEnd;\n        tang = 1.0;\n    } else {\n        current = aStart;\n        tang = -1.0;\n    }\n    float side = (mod(idx, 2.0)-0.5)*2.0;\n    uvl.xy = vec2(tang, side);\n    uvl.w = floor(aIdx / 4.0 + 0.5);\n\n    vec2 dir = aEnd-aStart;\n    uvl.z = length(dir);\n    if (uvl.z > EPS) {\n        dir = dir / uvl.z;\n    } else {\n    // If the segment is too short draw a square;\n        dir = vec2(1.0, 0.0);\n    }\n    vec2 norm = vec2(-dir.y, dir.x);\n    gl_Position = vec4((current+(tang*dir+norm*side)*uSize)*uInvert,0.0,1.0);\n    //gl_PointSize = 20.0;\n}\n",
+    fsLine: "precision highp float;\n#define GLSLIFY 1\n#define EPS 1E-6\n#define TAU 6.283185307179586\n#define TAUR 2.5066282746310002\n#define SQRT2 1.4142135623730951\nuniform float uSize;\nuniform float uIntensity;\nuniform vec4 uColor;\nvarying vec4 uvl;\nfloat gaussian(float x, float sigma) {\n    return exp(-(x * x) / (2.0 * sigma * sigma)) / (TAUR * sigma);\n}\n\nfloat erf(float x) {\n    float s = sign(x), a = abs(x);\n    x = 1.0 + (0.278393 + (0.230389 + (0.000972 + 0.078108 * a) * a) * a) * a;\n    x *= x;\n    return s - s / (x * x);\n}\nvoid main (void)\n{\n    float len = uvl.z;\n    vec2 xy = vec2((len/2.0+uSize)*uvl.x+len/2.0, uSize*uvl.y);\n    float alpha;\n\n    float sigma = uSize/4.0;\n    if (len < EPS) {\n    // If the beam segment is too short, just calculate intensity at the position.\n        alpha = exp(-pow(length(xy),2.0)/(2.0*sigma*sigma))/2.0/sqrt(uSize);\n    } else {\n    // Otherwise, use analytical integral for accumulated intensity.\n        alpha = erf((len-xy.x)/SQRT2/sigma) + erf(xy.x/SQRT2/sigma);\n        alpha *= exp(-xy.y*xy.y/(2.0*sigma*sigma))/2.0/len*uSize;\n    }\n    float afterglow = smoothstep(0.0, 0.33, uvl.w/2048.0);\n    alpha *= afterglow * uIntensity;\n    gl_FragColor = vec4(vec3(uColor), uColor.a * alpha);\n}\n",
+    vsBlurTranspose: "precision highp float;\n#define GLSLIFY 1\nuniform float uSize;\nattribute vec2 aPos, aST;\nvarying vec2 vTexCoord;\nvoid main (void) {\n    gl_Position = vec4(aPos.y, aPos.x, 1, 1);\n    vTexCoord = aST*uSize/1024.0;\n}\n",
+    fsBlurTranspose: "precision highp float;\n#define GLSLIFY 1\nuniform sampler2D uTexture;\nuniform float uSize;\nvarying vec2 vTexCoord;\nvoid main (void) {\n    float point = uSize/1024.0/1024.0*2.0;\n    vec4 color = texture2D(uTexture, vTexCoord);\n    float sum = 0.0;\n    sum += texture2D(uTexture, vec2(vTexCoord.x - point*4.0, vTexCoord.y)).g * (1.0/25.0);\n    sum += texture2D(uTexture, vec2(vTexCoord.x - point*3.0, vTexCoord.y)).g * (2.0/25.0);\n    sum += texture2D(uTexture, vec2(vTexCoord.x - point*2.0, vTexCoord.y)).g * (3.0/25.0);\n    sum += texture2D(uTexture, vec2(vTexCoord.x - point*1.0, vTexCoord.y)).g * (4.0/25.0);\n    sum += texture2D(uTexture, vec2(vTexCoord.x            , vTexCoord.y)).g * (5.0/25.0);\n    sum += texture2D(uTexture, vec2(vTexCoord.x + point*1.0, vTexCoord.y)).g * (4.0/25.0);\n    sum += texture2D(uTexture, vec2(vTexCoord.x + point*2.0, vTexCoord.y)).g * (3.0/25.0);\n    sum += texture2D(uTexture, vec2(vTexCoord.x + point*3.0, vTexCoord.y)).g * (2.0/25.0);\n    sum += texture2D(uTexture, vec2(vTexCoord.x + point*4.0, vTexCoord.y)).g * (1.0/25.0);\n    gl_FragColor = vec4(0.0, sum, 0.0, 1.0);\n}\n",
+    vsOutput: "precision highp float;\n#define GLSLIFY 1\nuniform float uSize;\nattribute vec2 aPos, aST;\nvarying vec2 vTexCoord;\nvoid main (void) {\n    gl_Position = vec4(aPos, 1, 1);\n    vTexCoord = aST*uSize/1024.0;\n}\n",
+    fsOutput: "precision highp float;\n#define GLSLIFY 1\nuniform sampler2D uTexture;\nuniform float uAlpha;\nvarying vec2 vTexCoord;\nvoid main (void) {\n    vec4 color = texture2D(uTexture, vTexCoord);\n    color.a = uAlpha;\n    gl_FragColor = color;\n}\n",
+    vsProgress: "precision highp float;\n#define GLSLIFY 1\nattribute vec2 aPos;\nattribute vec2 aUV;\nvarying vec2 vUV;\nvoid main (void) {\n    gl_Position = vec4(aPos, 1, 1);\n    vUV = aUV;\n}\n",
+    fsProgress: "precision highp float;\n#define GLSLIFY 1\nuniform float uProgress;\nuniform vec4 uColor;\nvarying vec2 vUV;\nfloat rect(vec2 p, vec2 s) {\n    return max(abs(p.x)-s.x,abs(p.y)-s.y);\n}\nvoid main (void) {\n    float p = clamp(uProgress, 0.0, 1.0);\n    float hw = 300.0;\n    vec2 size = vec2(800.0, 800.0);\n    vec2 c = size / 2.0;\n    vec2 uv = vUV*size - c;\n    float result = min(rect(uv,vec2(hw+5.,25.)),-rect(uv,vec2(hw+10.,30.)));\n    result = max(result,-rect(uv-vec2(hw*(p-1.0),0.0),vec2(hw*p, 20.0)));\n    gl_FragColor = uColor * clamp(result, 0.0, 1.0);\n}\n"
 };
 
-var audioCtx = undefined;
-try {
-    try {
-        audioCtx = new AudioContext();
-    } catch (e) {
-        audioCtx = new webkitAudioContext();
-    }
-} catch (e) {
-    throw new Error('Web Audio API is not supported in this browser');
-}
+var defaultColor = [1 / 32, 1, 1 / 32, 1],
+    defaultBackground = [0, 0, 0, 1];
 
-function axhr(url, callback, progress) {
+var audioCtx = void 0;
+
+function axhr(url, callback, errorCallback, progress) {
     var request = new XMLHttpRequest();
     request.open('GET', url, true);
     request.responseType = 'arraybuffer';
     request.onprogress = progress;
     request.onload = function () {
+        if (request.status >= 400) {
+            return errorCallback("Error loading audio file - " + request.status + " " + request.statusText);
+        }
         audioCtx.decodeAudioData(request.response, function (buffer) {
             callback(buffer);
+        }, function (e) {
+            errorCallback('Unable to decode audio data');
         });
     };
     request.send();
@@ -44,16 +43,24 @@ function axhr(url, callback, progress) {
 
 module.exports = woscope;
 function woscope(config) {
+    audioCtx = audioCtx || initAudioCtx(config.error);
+
     var canvas = config.canvas,
-        gl = initGl(canvas),
+        gl = initGl(canvas, config.background, config.error),
         audio = config.audio,
         audioUrl = config.audioUrl || audio.currentSrc || audio.src,
+        live = config.live === true ? getLiveType() : config.live,
         callback = config.callback || function () {};
 
     var ctx = {
         gl: gl,
+        destroy: destroy,
+        live: live,
         swap: config.swap,
         invert: config.invert,
+        sweep: config.sweep,
+        color: config.color,
+        color2: config.color2,
         lineShader: createShader(gl, shadersDict.vsLine, shadersDict.fsLine),
         blurShader: createShader(gl, shadersDict.vsBlurTranspose, shadersDict.fsBlurTranspose),
         outputShader: createShader(gl, shadersDict.vsOutput, shadersDict.fsOutput),
@@ -61,52 +68,186 @@ function woscope(config) {
         progress: 0,
         loaded: false,
         nSamples: 4096,
-        doBloom: false
+        bloom: config.bloom
     };
 
     Object.assign(ctx, {
         quadIndex: makeQuadIndex(ctx),
         vertexIndex: makeVertexIndex(ctx),
         outQuadArray: makeOutQuad(ctx),
-        scratchBuffer: new Float32Array(ctx.nSamples * 4)
+        scratchBuffer: new Float32Array(ctx.nSamples * 4),
+        audioRamp: makeRamp(Math.ceil(ctx.nSamples / 3))
     });
 
     Object.assign(ctx, makeFrameBuffer(ctx, canvas.width, canvas.height));
 
-    var loop = function loop() {
+    function destroy() {
+        // release GPU in Chrome
+        gl.getExtension('WEBGL_lose_context').loseContext();
+        // end loops, empty context object
+        _loop = emptyContext;
+        _progressLoop = emptyContext;
+        function emptyContext() {
+            Object.keys(ctx).forEach(function (val) {
+                delete ctx[val];
+            });
+        }
+    }
+
+    var _loop = function loop() {
         draw(ctx, canvas, audio);
-        requestAnimationFrame(loop);
+        requestAnimationFrame(_loop);
     };
 
-    var progressLoop = function progressLoop() {
+    if (ctx.live) {
+        if (ctx.live === 'scriptProcessor') {
+            ctx.scriptNode = initScriptNode(ctx, audio, audioCtx);
+        } else {
+            ctx.analysers = initAnalysers(ctx, audio);
+        }
+        callback(ctx);
+        _loop();
+        return ctx;
+    }
+
+    var _progressLoop = function progressLoop() {
         if (ctx.loaded) {
             return;
         }
         drawProgress(ctx, canvas);
-        requestAnimationFrame(progressLoop);
+        requestAnimationFrame(_progressLoop);
     };
-    progressLoop();
+    _progressLoop();
 
     axhr(audioUrl, function (buffer) {
-        callback();
-
         ctx.audioData = prepareAudioData(ctx, buffer);
         ctx.loaded = true;
-        loop();
-    }, function (e) {
+        callback(ctx);
+        _loop();
+    }, config.error, function (e) {
         ctx.progress = e.total ? e.loaded / e.total : 1.0;
         console.log('progress: ' + e.loaded + ' / ' + e.total);
     });
+
+    return ctx;
 }
 
-function initGl(canvas) {
-    var gl = canvas.getContext('webgl');
-    if (!gl) {
-        $('nogl').style.display = 'block';
-        throw new Error('no gl :C');
+function supportsAnalyserFloat() {
+    return typeof audioCtx.createAnalyser().getFloatTimeDomainData === 'function';
+}
+
+function getLiveType() {
+    return supportsAnalyserFloat() ? 'analyser' : 'scriptProcessor';
+}
+
+function initAudioCtx(errorCallback) {
+    try {
+        var AudioCtx = window.AudioContext || window.webkitAudioContext;
+        return new AudioCtx();
+    } catch (e) {
+        var message = 'Web Audio API is not supported in this browser';
+        if (errorCallback) {
+            errorCallback(message);
+        }
+        throw new Error(message);
     }
-    gl.clearColor(0.0, 0.0, 0.0, 1.0);
+}
+
+function initGl(canvas, background, errorCallback) {
+    var gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+    if (!gl) {
+        var message = 'WebGL is not supported in this browser :(';
+        if (errorCallback) {
+            errorCallback(message);
+        }
+        throw new Error(message);
+    }
+    gl.clearColor.apply(gl, background || defaultBackground);
     return gl;
+}
+
+function initAnalysers(ctx, audio) {
+    var sourceNode = audioCtx.createMediaElementSource(audio);
+
+    ctx.audioData = {
+        sourceChannels: sourceNode.channelCount
+    };
+
+    // Split the combined channels
+    var channelSplitter = audioCtx.createChannelSplitter(2);
+    sourceNode.connect(gainWorkaround(channelSplitter, audio));
+
+    var analysers = [0, 1].map(function (val, index) {
+        var analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 2048;
+        channelSplitter.connect(analyser, index, 0);
+        return analyser;
+    });
+
+    var channelMerger = audioCtx.createChannelMerger(2);
+    analysers.forEach(function (analyser, index) {
+        analyser.connect(channelMerger, 0, index);
+    });
+
+    channelMerger.connect(audioCtx.destination);
+    return analysers;
+}
+
+function initScriptNode(ctx, audio, audioCtx) {
+    var sourceNode = audioCtx.createMediaElementSource(audio);
+
+    var samples = 1024;
+    var scriptNode = audioCtx.createScriptProcessor(samples, 2, 2);
+    sourceNode.connect(gainWorkaround(scriptNode, audio));
+
+    var audioData = [new Float32Array(ctx.nSamples), new Float32Array(ctx.nSamples)];
+    ctx.audioData = {
+        left: audioData[0],
+        right: audioData[1],
+        sampleRate: audioCtx.sampleRate,
+        sourceChannels: sourceNode.channelCount
+    };
+
+    function processAudio(e) {
+        var inputBuffer = e.inputBuffer,
+            outputBuffer = e.outputBuffer;
+
+        for (var i = 0; i < inputBuffer.numberOfChannels; i++) {
+            var inputData = inputBuffer.getChannelData(i),
+                outputData = outputBuffer.getChannelData(i);
+
+            // send unprocessed audio to output
+            outputData.set(inputData);
+
+            // append to audioData arrays
+            var channel = audioData[i];
+            // shift forward by x samples
+            channel.set(channel.subarray(inputBuffer.length));
+            // add new samples at end
+            channel.set(inputData, channel.length - inputBuffer.length);
+        }
+    }
+
+    scriptNode.onaudioprocess = processAudio;
+
+    scriptNode.connect(audioCtx.destination);
+    return scriptNode;
+}
+
+function gainWorkaround(node, audio) {
+    // Safari: createMediaElementSource causes output to ignore volume slider,
+    // so match gain to slider as a workaround
+    var gainNode = void 0;
+    if (audioCtx.constructor.name === 'webkitAudioContext') {
+        gainNode = audioCtx.createGain();
+        audio.onvolumechange = function () {
+            gainNode.gain.value = audio.muted ? 0 : audio.volume;
+        };
+        gainNode.connect(node);
+        return gainNode;
+    } else {
+        return node;
+    }
 }
 
 function createShader(gl, vsSource, fsSource) {
@@ -127,10 +268,10 @@ function createShader(gl, vsSource, fsSource) {
     gl.shaderSource(fs, fsSource);
     gl.compileShader(fs);
     if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
-        var infoLog = gl.getShaderInfoLog(fs);
+        var _infoLog = gl.getShaderInfoLog(fs);
         gl.deleteShader(vs);
         gl.deleteShader(fs);
-        throw new Error('createShader, fragment shader compilation:\n' + infoLog);
+        throw new Error('createShader, fragment shader compilation:\n' + _infoLog);
     }
 
     var program = gl.createProgram();
@@ -144,9 +285,9 @@ function createShader(gl, vsSource, fsSource) {
     gl.linkProgram(program);
 
     if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
-        var infoLog = gl.getProgramInfoLog(program);
+        var _infoLog2 = gl.getProgramInfoLog(program);
         gl.deleteProgram(program);
-        throw new Error('createShader, linking:\n' + infoLog);
+        throw new Error('createShader, linking:\n' + _infoLog2);
     }
 
     return program;
@@ -225,51 +366,85 @@ function makeFrameBuffer(ctx, width, height) {
         lineTexture: makeTargetTexture(gl, frameBuffer.width, frameBuffer.height),
         blurTexture: makeTargetTexture(gl, frameBuffer.width, frameBuffer.height),
         blurTexture2: makeTargetTexture(gl, frameBuffer.width, frameBuffer.height),
-        vbo: gl.createBuffer()
+        vbo: gl.createBuffer(),
+        vbo2: gl.createBuffer()
     };
 }
 
 function prepareAudioData(ctx, buffer) {
     var left = buffer.getChannelData(0),
-        right = buffer.getChannelData(1);
-
-    if (ctx.swap) {
-        var tmp = left;
-        left = right;
-        right = tmp;
-    }
+        right = buffer.numberOfChannels > 1 ? buffer.getChannelData(1) : left;
 
     return {
         left: left,
         right: right,
-        sampleRate: buffer.sampleRate
+        sampleRate: buffer.sampleRate,
+        sourceChannels: buffer.numberOfChannels
     };
 }
 
+function makeRamp(len) {
+    // returns array of "len" length, values linearly increase from -1 to 1
+    var arr = new Float32Array(len),
+        dx = 2 / (len - 1);
+    for (var i = 0; i < len; i++) {
+        arr[i] = i * dx - 1;
+    }
+    return arr;
+}
+
 function loadWaveAtPosition(ctx, position) {
-    var gl = ctx.gl;
     position = Math.max(0, position - 1 / 120);
     position = Math.floor(position * ctx.audioData.sampleRate);
 
     var end = Math.min(ctx.audioData.left.length, position + ctx.nSamples) - 1,
         len = end - position;
-    var subArr = ctx.scratchBuffer,
-        left = ctx.audioData.left,
-        right = ctx.audioData.right;
-    for (var i = 0; i < len; i++) {
-        var t = i * 8,
-            p = i + position;
-        subArr[t] = subArr[t + 2] = subArr[t + 4] = subArr[t + 6] = left[p];
-        subArr[t + 1] = subArr[t + 3] = subArr[t + 5] = subArr[t + 7] = right[p];
-    }
+    var left = ctx.audioData.left.subarray(position, end),
+        right = ctx.audioData.right.subarray(position, end);
 
-    gl.bindBuffer(gl.ARRAY_BUFFER, ctx.vbo);
-    gl.bufferData(gl.ARRAY_BUFFER, subArr, gl.STATIC_DRAW);
-    gl.bindBuffer(gl.ARRAY_BUFFER, null);
+    channelRouter(ctx, len, left, right);
 }
 
-function $(id) {
-    return document.getElementById(id);
+function loadWaveLive(ctx) {
+    var analyser0 = ctx.analysers[0],
+        analyser1 = ctx.analysers[1];
+    var len = analyser0.fftSize,
+        left = new Float32Array(analyser0.fftSize),
+        right = new Float32Array(analyser1.fftSize);
+
+    analyser0.getFloatTimeDomainData(left);
+    analyser1.getFloatTimeDomainData(right);
+
+    channelRouter(ctx, len, left, right);
+}
+
+function channelRouter(ctx, len, left, right) {
+    if (ctx.sweep && ctx.swap) {
+        loadChannelsInto(ctx, len, ctx.vbo, ctx.audioRamp, right);
+        loadChannelsInto(ctx, len, ctx.vbo2, ctx.audioRamp, left);
+    } else if (ctx.sweep) {
+        loadChannelsInto(ctx, len, ctx.vbo, ctx.audioRamp, left);
+        loadChannelsInto(ctx, len, ctx.vbo2, ctx.audioRamp, right);
+    } else if (ctx.swap) {
+        loadChannelsInto(ctx, len, ctx.vbo, right, left);
+    } else {
+        loadChannelsInto(ctx, len, ctx.vbo, left, right);
+    }
+}
+
+function loadChannelsInto(ctx, len, vbo, xAxis, yAxis) {
+    var gl = ctx.gl,
+        subArr = ctx.scratchBuffer;
+
+    for (var i = 0; i < len; i++) {
+        var t = i * 8;
+        subArr[t] = subArr[t + 2] = subArr[t + 4] = subArr[t + 6] = xAxis[i];
+        subArr[t + 1] = subArr[t + 3] = subArr[t + 5] = subArr[t + 7] = yAxis[i];
+    }
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+    gl.bufferData(gl.ARRAY_BUFFER, subArr, gl.STATIC_DRAW);
+    gl.bindBuffer(gl.ARRAY_BUFFER, null);
 }
 
 function supportsWebGl() {
@@ -310,6 +485,10 @@ function drawProgress(ctx, canvas) {
         if (tmpPos && tmpPos !== -1) {
             gl.uniform1f(tmpPos, progress);
         }
+        tmpPos = gl.getUniformLocation(ctx.progressShader, 'uColor');
+        if (tmpPos && tmpPos !== -1) {
+            gl.uniform4fv(tmpPos, ctx.color || defaultColor);
+        }
     }
 
     gl.bindBuffer(gl.ARRAY_BUFFER, ctx.outQuadArray);
@@ -343,23 +522,37 @@ function drawProgress(ctx, canvas) {
 
 function draw(ctx, canvas, audio) {
     var gl = ctx.gl;
-    loadWaveAtPosition(ctx, audio.currentTime);
+    if (ctx.live) {
+        if (ctx.live === 'scriptProcessor') {
+            loadWaveAtPosition(ctx, 0);
+        } else {
+            loadWaveLive(ctx);
+        }
+    } else {
+        loadWaveAtPosition(ctx, audio.currentTime);
+    }
 
     var width = canvas.width,
         height = canvas.height;
 
-    if (!ctx.doBloom) {
+    if (!ctx.bloom) {
         gl.bindFramebuffer(gl.FRAMEBUFFER, null);
         gl.viewport(0, 0, width, height);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-        drawLine(ctx, ctx.lineShader);
+        drawLine(ctx, ctx.lineShader, ctx.vbo, ctx.color);
+        if (ctx.sweep) {
+            drawLine(ctx, ctx.lineShader, ctx.vbo2, ctx.color2);
+        }
     } else {
 
         gl.bindFramebuffer(gl.FRAMEBUFFER, ctx.frameBuffer);
         activateTargetTexture(ctx, ctx.lineTexture);
         gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
         gl.viewport(0, 0, width, height);
-        drawLine(ctx, ctx.lineShader);
+        drawLine(ctx, ctx.lineShader, ctx.vbo, ctx.color);
+        if (ctx.sweep) {
+            drawLine(ctx, ctx.lineShader, ctx.vbo2, ctx.color2);
+        }
 
         {
             // generate mipmap
@@ -392,7 +585,7 @@ function draw(ctx, canvas, audio) {
     }
 }
 
-function drawLine(ctx, shader) {
+function drawLine(ctx, shader, vbo, color) {
     var gl = ctx.gl;
     gl.useProgram(shader);
     {
@@ -407,6 +600,10 @@ function drawLine(ctx, shader) {
         tmpPos = gl.getUniformLocation(shader, 'uIntensity');
         if (tmpPos && tmpPos !== -1) {
             gl.uniform1f(tmpPos, 1);
+        }
+        tmpPos = gl.getUniformLocation(shader, 'uColor');
+        if (tmpPos && tmpPos !== -1) {
+            gl.uniform4fv(tmpPos, color || defaultColor);
         }
     }
 
@@ -423,19 +620,19 @@ function drawLine(ctx, shader) {
     }
 
     {
-        gl.bindBuffer(gl.ARRAY_BUFFER, ctx.vbo);
-        var tmpPos = gl.getAttribLocation(shader, 'aStart');
-        if (tmpPos > -1) {
-            gl.enableVertexAttribArray(tmpPos);
-            gl.vertexAttribPointer(tmpPos, 2, gl.FLOAT, false, 8, 0);
-            attribs.push(tmpPos);
+        gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
+        var _tmpPos = gl.getAttribLocation(shader, 'aStart');
+        if (_tmpPos > -1) {
+            gl.enableVertexAttribArray(_tmpPos);
+            gl.vertexAttribPointer(_tmpPos, 2, gl.FLOAT, false, 8, 0);
+            attribs.push(_tmpPos);
         }
 
-        tmpPos = gl.getAttribLocation(shader, 'aEnd');
-        if (tmpPos > -1) {
-            gl.enableVertexAttribArray(tmpPos);
-            gl.vertexAttribPointer(tmpPos, 2, gl.FLOAT, false, 8, 8 * 4);
-            attribs.push(tmpPos);
+        _tmpPos = gl.getAttribLocation(shader, 'aEnd');
+        if (_tmpPos > -1) {
+            gl.enableVertexAttribArray(_tmpPos);
+            gl.vertexAttribPointer(_tmpPos, 2, gl.FLOAT, false, 8, 8 * 4);
+            attribs.push(_tmpPos);
         }
     }
 
@@ -483,17 +680,17 @@ function drawTexture(ctx, texture, size, shader, alpha) {
     gl.activeTexture(gl.TEXTURE0);
     gl.bindTexture(gl.TEXTURE_2D, texture);
     {
-        var tmpPos = gl.getUniformLocation(shader, 'uTexture');
-        if (tmpPos && tmpPos !== -1) {
-            gl.uniform1i(tmpPos, 0);
+        var _tmpPos2 = gl.getUniformLocation(shader, 'uTexture');
+        if (_tmpPos2 && _tmpPos2 !== -1) {
+            gl.uniform1i(_tmpPos2, 0);
         }
-        tmpPos = gl.getUniformLocation(shader, 'uSize');
-        if (tmpPos && tmpPos !== -1) {
-            gl.uniform1f(tmpPos, size);
+        _tmpPos2 = gl.getUniformLocation(shader, 'uSize');
+        if (_tmpPos2 && _tmpPos2 !== -1) {
+            gl.uniform1f(_tmpPos2, size);
         }
-        tmpPos = gl.getUniformLocation(shader, 'uAlpha');
-        if (tmpPos && tmpPos !== -1) {
-            gl.uniform1f(tmpPos, alpha);
+        _tmpPos2 = gl.getUniformLocation(shader, 'uAlpha');
+        if (_tmpPos2 && _tmpPos2 !== -1) {
+            gl.uniform1f(_tmpPos2, alpha);
         }
     }
 
