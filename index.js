@@ -78,7 +78,10 @@ function woscope(config) {
 
     function destroy() {
         // release GPU in Chrome
-        gl.getExtension('WEBGL_lose_context').loseContext();
+        let ext = gl.getExtension('WEBGL_lose_context');
+        if (ext) {
+            ext.loseContext();
+        }
         // end loops, empty context object
         loop = emptyContext;
         progressLoop = emptyContext;
