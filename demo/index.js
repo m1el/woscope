@@ -189,11 +189,18 @@ function setupOptionsUI(updater, options) {
         let input = li.firstChild.firstChild;
 
         input.checked = query[param];
-        input.onchange = (param === 'live') ? toggleAndReset : toggle;
+        input.onchange = (param === 'live') ? getLiveToggle() : toggle;
 
         ul.appendChild(li);
     });
 
+    function getLiveToggle() {
+        // prefer to reset woscope when toggling live mode, but Safari viz loses
+        // sync when live = false and a MediaElementSourceNode is attached to
+        // the audio element, so reload page instead.
+        // this depends on Safari using webkitAudioContext and may be fragile
+        return (window.AudioContext) ? toggleAndReset : toggleAndReload;
+    }
     function toggle(e) {
         updateUrl(e);
         let result = {};
@@ -204,6 +211,9 @@ function setupOptionsUI(updater, options) {
         updateUrl(e);
         updatePageInfo();
         resetWoscope(updater());
+    }
+    function toggleAndReload(e) {
+        location.href = makeUrl(e);
     }
     function updateUrl(e) {
         history.replaceState(null, '', makeUrl(e));
