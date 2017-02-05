@@ -177,6 +177,8 @@ function initAnalysers(ctx, sourceNode) {
     };
 
     // Split the combined channels
+    // Note: Chrome channelSplitter upmixes mono (out.L = in.M, out.R = in.M),
+    // Firefox/Edge/Safari do not (out.L = in.M, out.R = 0) - as of Feb 2017
     let channelSplitter = audioCtx.createChannelSplitter(2);
     sourceNode.connect(channelSplitter);
 
@@ -192,7 +194,11 @@ function initAnalysers(ctx, sourceNode) {
         analyser.connect(channelMerger, 0, index);
     });
 
-    channelMerger.connect(audioCtx.destination);
+    // connect the source directly to the destination to avoid mono inconsistency
+    sourceNode.connect(audioCtx.destination);
+    // Edge/Safari require analyser nodes to be connected to a destination
+    muteOutput(channelMerger).connect(audioCtx.destination);
+
     return analysers;
 }
 
@@ -252,6 +258,13 @@ function gainWorkaround(node, audio) {
     } else {
         return node;
     }
+}
+
+function muteOutput(node) {
+    let gainNode = audioCtx.createGain();
+    gainNode.gain.value = 0;
+    node.connect(gainNode);
+    return gainNode;
 }
 
 function createShader(gl, vsSource, fsSource) {
