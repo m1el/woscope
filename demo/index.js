@@ -42,9 +42,7 @@ if (!query.file) {
 let file = query.file;
 
 window.onload = function() {
-    let canvas = $('c'),
-        htmlAudio = $('htmlAudio'),
-        htmlError = $('htmlError');
+    let htmlAudio = $('htmlAudio');
 
     updatePageInfo();
 
@@ -53,7 +51,15 @@ window.onload = function() {
 
     window.onresize();
 
-    let myWoscope = woscope({
+    initWoscope();
+};
+
+function initWoscope(config) {
+    let canvas = $('c'),
+        htmlAudio = $('htmlAudio'),
+        htmlError = $('htmlError');
+
+    config = Object.assign({
       canvas: canvas,
       audio: htmlAudio,
       callback: function () { htmlAudio.play(); },
@@ -66,10 +72,12 @@ window.onload = function() {
       sweep: query.sweep,
       bloom: query.bloom,
       live: query.live,
-    });
+    }, config);
+
+    let myWoscope = woscope(config);
 
     setupOptionsUI(
-        function (options) { Object.assign(myWoscope, options); },
+        function (options) { return Object.assign(myWoscope, options); },
         {
             swap: 'swap channels',
             invert: 'invert coordinates',
@@ -81,7 +89,29 @@ window.onload = function() {
                 '- does not work in Mobile Safari',
         }
     );
-};
+}
+
+let mySourceNode;
+
+function resetWoscope(woscopeInstance) {
+    // Chrome has limit of one sourceNode per audio element, so keep a reference
+    mySourceNode = woscopeInstance.sourceNode || mySourceNode;
+
+    woscopeInstance.destroy();
+
+    // replace canvas. more compatible than restoring gl context on old canvas
+    let canvas = $('c');
+    let replacement = document.createElement('div');
+    replacement.innerHTML = canvas.outerHTML;
+    canvas.parentNode.replaceChild(replacement.firstChild, canvas);
+
+    // prevent doubled audio
+    if (query.live && mySourceNode) {
+        mySourceNode.disconnect();
+    }
+
+    initWoscope({sourceNode: mySourceNode});
+}
 
 window.onresize = function () {
     let canvas = $('c'),
@@ -159,17 +189,27 @@ function setupOptionsUI(updater, options) {
         let input = li.firstChild.firstChild;
 
         input.checked = query[param];
-        input.onchange = (param === 'live') ? toggleParam : toggle;
+        input.onchange = (param === 'live') ? toggleAndReset : toggle;
 
         ul.appendChild(li);
     });
 
     function toggle(e) {
+        updateUrl(e);
         let result = {};
         result[e.target.id] = e.target.checked;
         updater(result);
     }
-    function toggleParam(e) {
+    function toggleAndReset(e) {
+        updateUrl(e);
+        updatePageInfo();
+        resetWoscope(updater());
+    }
+    function updateUrl(e) {
+        history.replaceState(null, '', makeUrl(e));
+        query = parseq(location.search);
+    }
+    function makeUrl(e) {
         let q = parseq(location.search);
         if (!q.file) {
             q = makeQuery(libraryInfo[0]);
@@ -179,6 +219,6 @@ function setupOptionsUI(updater, options) {
         } else {
             delete q[e.target.id];
         }
-        location.href = '?' + dumpq(q);
+        return '?' + dumpq(q);
     }
 }
