@@ -219,15 +219,12 @@ function initScriptNode(ctx, sourceNode) {
     };
 
     function processAudio(e) {
-        let inputBuffer = e.inputBuffer,
-            outputBuffer = e.outputBuffer;
+        // scriptProcessor can distort output when resource-constrained,
+        // so output silence instead by leaving the outputBuffer empty
+        let inputBuffer = e.inputBuffer;
 
         for (let i=0; i < inputBuffer.numberOfChannels; i++) {
-            let inputData = inputBuffer.getChannelData(i),
-                outputData = outputBuffer.getChannelData(i);
-
-            // send unprocessed audio to output
-            outputData.set(inputData);
+            let inputData = inputBuffer.getChannelData(i);
 
             // append to audioData arrays
             let channel = audioData[i];
@@ -240,7 +237,11 @@ function initScriptNode(ctx, sourceNode) {
 
     scriptNode.onaudioprocess = processAudio;
 
+    // connect the source directly to the destination to avoid distortion
+    sourceNode.connect(audioCtx.destination);
+    // Edge/Safari require scriptProcessor nodes to be connected to a destination
     scriptNode.connect(audioCtx.destination);
+
     return scriptNode;
 }
 
