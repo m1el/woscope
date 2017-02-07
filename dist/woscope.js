@@ -1,6 +1,6 @@
 /**
  * @name    woscope
- * @version 0.2.0 | February 1st 2017
+ * @version 0.2.1 | February 6th 2017
  * @author  m1el
  * @license MIT
  */
@@ -61,6 +61,7 @@ function woscope(config) {
         sweep: config.sweep,
         color: config.color,
         color2: config.color2,
+        lineSize: config.lineSize === undefined ? 0.012 : config.lineSize,
         lineShader: createShader(gl, shadersDict.vsLine, shadersDict.fsLine),
         blurShader: createShader(gl, shadersDict.vsBlurTranspose, shadersDict.fsBlurTranspose),
         outputShader: createShader(gl, shadersDict.vsOutput, shadersDict.fsOutput),
@@ -83,7 +84,15 @@ function woscope(config) {
 
     function destroy() {
         // release GPU in Chrome
-        gl.getExtension('WEBGL_lose_context').loseContext();
+        var ext = gl.getExtension('WEBGL_lose_context');
+        if (ext) {
+            ext.loseContext();
+        }
+        // disconnect web audio nodes
+        if (ctx.sourceNode) {
+            ctx.sourceNode.disconnect();
+            ctx.sourceNode.connect(audioCtx.destination);
+        }
         // end loops, empty context object
         _loop = emptyContext;
         _progressLoop = emptyContext;
@@ -100,10 +109,12 @@ function woscope(config) {
     };
 
     if (ctx.live) {
+        ctx.sourceNode = config.sourceNode || audioCtx.createMediaElementSource(audio);
+        var source = gainWorkaround(ctx.sourceNode, audio);
         if (ctx.live === 'scriptProcessor') {
-            ctx.scriptNode = initScriptNode(ctx, audio, audioCtx);
+            ctx.scriptNode = initScriptNode(ctx, source);
         } else {
-            ctx.analysers = initAnalysers(ctx, audio);
+            ctx.analysers = initAnalysers(ctx, source);
         }
         callback(ctx);
         _loop();
@@ -166,16 +177,16 @@ function initGl(canvas, background, errorCallback) {
     return gl;
 }
 
-function initAnalysers(ctx, audio) {
-    var sourceNode = audioCtx.createMediaElementSource(audio);
-
+function initAnalysers(ctx, sourceNode) {
     ctx.audioData = {
         sourceChannels: sourceNode.channelCount
     };
 
     // Split the combined channels
+    // Note: Chrome channelSplitter upmixes mono (out.L = in.M, out.R = in.M),
+    // Firefox/Edge/Safari do not (out.L = in.M, out.R = 0) - as of Feb 2017
     var channelSplitter = audioCtx.createChannelSplitter(2);
-    sourceNode.connect(gainWorkaround(channelSplitter, audio));
+    sourceNode.connect(channelSplitter);
 
     var analysers = [0, 1].map(function (val, index) {
         var analyser = audioCtx.createAnalyser();
@@ -189,16 +200,18 @@ function initAnalysers(ctx, audio) {
         analyser.connect(channelMerger, 0, index);
     });
 
-    channelMerger.connect(audioCtx.destination);
+    // connect the source directly to the destination to avoid mono inconsistency
+    sourceNode.connect(audioCtx.destination);
+    // Edge/Safari require analyser nodes to be connected to a destination
+    muteOutput(channelMerger).connect(audioCtx.destination);
+
     return analysers;
 }
 
-function initScriptNode(ctx, audio, audioCtx) {
-    var sourceNode = audioCtx.createMediaElementSource(audio);
-
+function initScriptNode(ctx, sourceNode) {
     var samples = 1024;
     var scriptNode = audioCtx.createScriptProcessor(samples, 2, 2);
-    sourceNode.connect(gainWorkaround(scriptNode, audio));
+    sourceNode.connect(scriptNode);
 
     var audioData = [new Float32Array(ctx.nSamples), new Float32Array(ctx.nSamples)];
     ctx.audioData = {
@@ -209,15 +222,12 @@ function initScriptNode(ctx, audio, audioCtx) {
     };
 
     function processAudio(e) {
-        var inputBuffer = e.inputBuffer,
-            outputBuffer = e.outputBuffer;
+        // scriptProcessor can distort output when resource-constrained,
+        // so output silence instead by leaving the outputBuffer empty
+        var inputBuffer = e.inputBuffer;
 
         for (var i = 0; i < inputBuffer.numberOfChannels; i++) {
-            var inputData = inputBuffer.getChannelData(i),
-                outputData = outputBuffer.getChannelData(i);
-
-            // send unprocessed audio to output
-            outputData.set(inputData);
+            var inputData = inputBuffer.getChannelData(i);
 
             // append to audioData arrays
             var channel = audioData[i];
@@ -230,7 +240,11 @@ function initScriptNode(ctx, audio, audioCtx) {
 
     scriptNode.onaudioprocess = processAudio;
 
+    // connect the source directly to the destination to avoid distortion
+    sourceNode.connect(audioCtx.destination);
+    // Edge/Safari require scriptProcessor nodes to be connected to a destination
     scriptNode.connect(audioCtx.destination);
+
     return scriptNode;
 }
 
@@ -243,11 +257,18 @@ function gainWorkaround(node, audio) {
         audio.onvolumechange = function () {
             gainNode.gain.value = audio.muted ? 0 : audio.volume;
         };
-        gainNode.connect(node);
+        node.connect(gainNode);
         return gainNode;
     } else {
         return node;
     }
+}
+
+function muteOutput(node) {
+    var gainNode = audioCtx.createGain();
+    gainNode.gain.value = 0;
+    node.connect(gainNode);
+    return gainNode;
 }
 
 function createShader(gl, vsSource, fsSource) {
@@ -595,7 +616,7 @@ function drawLine(ctx, shader, vbo, color) {
         }
         tmpPos = gl.getUniformLocation(shader, 'uSize');
         if (tmpPos && tmpPos !== -1) {
-            gl.uniform1f(tmpPos, 0.012);
+            gl.uniform1f(tmpPos, ctx.lineSize);
         }
         tmpPos = gl.getUniformLocation(shader, 'uIntensity');
         if (tmpPos && tmpPos !== -1) {
