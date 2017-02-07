@@ -56,6 +56,7 @@ function woscope(config) {
         sweep: config.sweep,
         color: config.color,
         color2: config.color2,
+        lineSize: (config.lineSize === undefined) ? 0.012 : config.lineSize,
         lineShader: createShader(gl, shadersDict.vsLine, shadersDict.fsLine),
         blurShader: createShader(gl, shadersDict.vsBlurTranspose, shadersDict.fsBlurTranspose),
         outputShader: createShader(gl, shadersDict.vsOutput, shadersDict.fsOutput),
@@ -618,7 +619,7 @@ function drawLine(ctx, shader, vbo, color) {
         }
         tmpPos = gl.getUniformLocation(shader, 'uSize');
         if (tmpPos && tmpPos !== -1) {
-            gl.uniform1f(tmpPos, 0.012);
+            gl.uniform1f(tmpPos, ctx.lineSize);
         }
         tmpPos = gl.getUniformLocation(shader, 'uIntensity');
         if (tmpPos && tmpPos !== -1) {
