@@ -126,15 +126,15 @@ function renderDom(obj) {
         idx = void 0,
         attrs = void 0;
     if (typeof obj === 'string') {
-        return new Text(obj);
+        return document.createTextNode(obj);
     } else if (Array.isArray(obj)) {
         if (obj[0] === '!comment') {
-            return new Comment(obj[1]);
+            return document.createComment(obj[1]);
         }
         dom = document.createElement(obj[0]);
         idx = 1;
         attrs = obj[1];
-        if (Object.getPrototypeOf(attrs) === Object.prototype) {
+        if (attrs && Object.getPrototypeOf(attrs) === Object.prototype) {
             idx += 1;
             Object.keys(attrs).forEach(function (key) {
                 if (key === 'style') {

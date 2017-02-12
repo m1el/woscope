@@ -127,32 +127,32 @@ function $(id) { return document.getElementById(id); }
 function renderDom(obj) {
   let dom, idx, attrs;
   if (typeof obj === 'string') {
-    return new Text(obj);
+      return document.createTextNode(obj);
   } else if (Array.isArray(obj)) {
-    if (obj[0] === '!comment') {
-      return new Comment(obj[1]);
-    }
-    dom = document.createElement(obj[0]);
-    idx = 1;
-    attrs = obj[1];
-    if (Object.getPrototypeOf(attrs) === Object.prototype) {
-        idx += 1;
-        Object.keys(attrs).forEach(function (key) {
-            if (key === 'style') {
-                Object.assign(dom.style, attrs[key]);
-            } else if (/^on/.test(key)) {
-                dom[key] = attrs[key];
-            } else {
-                dom.setAttribute(key, attrs[key]);
-            }
-        });
-    }
-    obj.slice(idx).forEach(function (child) {
-        dom.appendChild(renderDom(child));
-    });
-    return dom;
+      if (obj[0] === '!comment') {
+          return document.createComment(obj[1]);
+      }
+      dom = document.createElement(obj[0]);
+      idx = 1;
+      attrs = obj[1];
+      if (attrs && Object.getPrototypeOf(attrs) === Object.prototype) {
+          idx += 1;
+          Object.keys(attrs).forEach(function (key) {
+              if (key === 'style') {
+                  Object.assign(dom.style, attrs[key]);
+              } else if (/^on/.test(key)) {
+                  dom[key] = attrs[key];
+              } else {
+                  dom.setAttribute(key, attrs[key]);
+              }
+          });
+      }
+      obj.slice(idx).forEach(function (child) {
+          dom.appendChild(renderDom(child));
+      });
+      return dom;
   } else {
-    throw 'Cannot make dom of: ' + obj;
+      throw 'Cannot make dom of: ' + obj;
   }
 }
 
