@@ -63,7 +63,10 @@ function initWoscope(config) {
       canvas: canvas,
       audio: htmlAudio,
       callback: function () { htmlAudio.play(); },
-      error: function (msg) { htmlError.innerHTML = msg; },
+      error: function (msg) {
+          htmlError.innerHTML = '';
+          htmlError.appendChild(renderDom(msg.toString()));
+      },
       color: [1/32, 1, 1/32, 1],
       color2: [1, 0, 1, 1],
       background: [0, 0, 0, 1],
@@ -101,9 +104,8 @@ function resetWoscope(woscopeInstance) {
 
     // replace canvas. more compatible than restoring gl context on old canvas
     let canvas = $('c');
-    let replacement = document.createElement('div');
-    replacement.innerHTML = canvas.outerHTML;
-    canvas.parentNode.replaceChild(replacement.firstChild, canvas);
+    let copy = canvas.cloneNode(true);
+    canvas.parentNode.replaceChild(copy, canvas);
 
     // prevent doubled audio
     if (query.live && mySourceNode) {
@@ -121,6 +123,38 @@ window.onresize = function () {
 };
 
 function $(id) { return document.getElementById(id); }
+
+function renderDom(obj) {
+  let dom, idx, attrs;
+  if (typeof obj === 'string') {
+    return new Text(obj);
+  } else if (Array.isArray(obj)) {
+    if (obj[0] === '!comment') {
+      return new Comment(obj[1]);
+    }
+    dom = document.createElement(obj[0]);
+    idx = 1;
+    attrs = obj[1];
+    if (Object.getPrototypeOf(attrs) === Object.prototype) {
+        idx += 1;
+        Object.keys(attrs).forEach(function (key) {
+            if (key === 'style') {
+                Object.assign(dom.style, attrs[key]);
+            } else if (/^on/.test(key)) {
+                dom[key] = attrs[key];
+            } else {
+                dom.setAttribute(key, attrs[key]);
+            }
+        });
+    }
+    obj.slice(idx).forEach(function (child) {
+        dom.appendChild(renderDom(child));
+    });
+    return dom;
+  } else {
+    throw 'Cannot make dom of: ' + obj;
+  }
+}
 
 function parseq(search) {
     search = search.replace(/^\?/, '');
@@ -144,31 +178,25 @@ function dumpq(obj) {
 }
 
 function updatePageInfo() {
+    let songInfo = $('songInfo');
+    songInfo.innerHTML = '';
     if (file in libraryDict) {
-        let info = libraryDict[file],
-            text = document.createTextNode(info.author + ' — ' + info.title + ' '),
-            songInfo = $('songInfo'),
-            a = document.createElement('a'),
-            linkText = document.createTextNode('[link]');
-
-        a.appendChild(linkText);
-        a.href = info.link;
-        songInfo.innerHTML = '';
-        songInfo.appendChild(text);
-        songInfo.appendChild(a);
+        let info = libraryDict[file];
+        songInfo.appendChild(renderDom(
+           ['span',
+               info.author + ' — ' + info.title + ' ',
+               ['a', {href: info.link}, '[link]']]
+        ));
     }
 
     let ul = $('playList');
     ul.innerHTML = '';
     libraryInfo.forEach(function (song) {
-        let a = document.createElement('a'),
-            li = document.createElement('li');
-        a.appendChild(document.createTextNode(song.title));
-
-        a.href = '?' + dumpq(makeQuery(song));
-
-        li.appendChild(a);
-        ul.appendChild(li);
+        ul.appendChild(renderDom(
+           ['li',
+               ['a', {href: '?' + dumpq(makeQuery(song))},
+                  song.title]]
+        ));
     });
 }
 
@@ -181,17 +209,27 @@ function makeQuery(song) {
 }
 
 function setupOptionsUI(updater, options) {
+    let addChecked = function(obj, checked) {
+        if (checked) {
+            obj.checked = true;
+        }
+        return obj;
+    };
+
     let ul = $('options');
     ul.innerHTML = '';
     Object.keys(options).forEach(function (param) {
-        let li = document.createElement('li');
-        li.innerHTML = `<label title="${options[param]}"><input type="checkbox" id="${param}"> ${param}</label>`;
-        let input = li.firstChild.firstChild;
-
-        input.checked = query[param];
-        input.onchange = (param === 'live') ? getLiveToggle() : toggle;
-
-        ul.appendChild(li);
+        ul.appendChild(renderDom(
+            ['li',
+                ['label', {title: options[param]},
+                    ['input',
+                        addChecked({
+                            type: 'checkbox',
+                            id: param,
+                            onchange: (param === 'live') ? getLiveToggle() : toggle,
+                        }, query[param])],
+                    ' ' + param]]
+        ));
     });
 
     function getLiveToggle() {

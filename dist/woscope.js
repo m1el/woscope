@@ -1,6 +1,6 @@
 /**
  * @name    woscope
- * @version 0.2.1 | February 6th 2017
+ * @version 0.2.2 | February 12th 2017
  * @author  m1el
  * @license MIT
  */
