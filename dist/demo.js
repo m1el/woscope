@@ -325,7 +325,7 @@ function woscope(config) {
         progressShader: createShader(gl, shadersDict.vsProgress, shadersDict.fsProgress),
         progress: 0,
         loaded: false,
-        nSamples: 4096,
+        nSamples: 2048,
         bloom: config.bloom
     };
 
@@ -333,7 +333,7 @@ function woscope(config) {
         quadIndex: makeQuadIndex(ctx),
         vertexIndex: makeVertexIndex(ctx),
         outQuadArray: makeOutQuad(ctx),
-        scratchBuffer: new Float32Array(ctx.nSamples * 4),
+        scratchBuffer: new Float32Array(ctx.nSamples * 8),
         audioRamp: makeRamp(Math.ceil(ctx.nSamples / 3))
     });
 
@@ -573,7 +573,7 @@ function createShader(gl, vsSource, fsSource) {
 
 function makeQuadIndex(ctx) {
     var gl = ctx.gl;
-    var index = new Int16Array(ctx.nSamples * 2);
+    var index = new Int16Array(ctx.nSamples * 4);
     for (var i = index.length; i--;) {
         index[i] = i;
     }
@@ -676,7 +676,7 @@ function loadWaveAtPosition(ctx, position) {
     position = Math.floor(position * ctx.audioData.sampleRate);
 
     var end = Math.min(ctx.audioData.left.length, position + ctx.nSamples) - 1,
-        len = end - position;
+        len = end - position + 1;
     var left = ctx.audioData.left.subarray(position, end),
         right = ctx.audioData.right.subarray(position, end);
 
@@ -686,7 +686,7 @@ function loadWaveAtPosition(ctx, position) {
 function loadWaveLive(ctx) {
     var analyser0 = ctx.analysers[0],
         analyser1 = ctx.analysers[1];
-    var len = analyser0.fftSize,
+    var len = Math.min(ctx.nSamples, analyser0.fftSize),
         left = new Float32Array(analyser0.fftSize),
         right = new Float32Array(analyser1.fftSize);
 
@@ -918,7 +918,7 @@ function drawLine(ctx, shader, vbo, color) {
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE);
 
     gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ctx.vertexIndex);
-    gl.drawElements(gl.TRIANGLES, (ctx.nSamples - 1) * 2, gl.UNSIGNED_SHORT, 0);
+    gl.drawElements(gl.TRIANGLES, (ctx.nSamples - 1) * 2 * 3, gl.UNSIGNED_SHORT, 0);
 
     gl.disable(gl.BLEND);
 
